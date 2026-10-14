@@ -1,0 +1,61 @@
+{
+    "$schema":  "https://schema.tauri.app/config/2",
+    "productName":  "Shiki",
+    "version":  "0.1.0",
+    "identifier":  "app.shiki.voice",
+    "build":  {
+                  "frontendDist":  "../ui"
+              },
+    "app":  {
+                "withGlobalTauri":  true,
+                "windows":  [
+                                {
+                                    "label":  "island",
+                                    "url":  "island.html",
+                                    "width":  820,
+                                    "height":  560,
+                                    "decorations":  false,
+                                    "transparent":  true,
+                                    "alwaysOnTop":  true,
+                                    "skipTaskbar":  true,
+                                    "resizable":  false,
+                                    "visible":  false,
+                                    "focus":  false,
+                                    "shadow":  false,
+                                    "additionalBrowserArgs":  "--disable-gpu --renderer-process-limit=1 --autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"
+                                },
+                                {
+                                    "label":  "overlay",
+                                    "url":  "overlay.html",
+                                    "decorations":  false,
+                                    "transparent":  true,
+                                    "alwaysOnTop":  true,
+                                    "skipTaskbar":  true,
+                                    "resizable":  false,
+                                    "visible":  false,
+                                    "focus":  false,
+                                    "shadow":  false,
+                                    "additionalBrowserArgs":  "--disable-gpu --renderer-process-limit=1 --autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"
+                                }
+                            ],
+                "security":  {
+                                 "csp":  null,
+                                 "assetProtocol":  {
+                                                       "enable":  true,
+                                                       "scope":  [
+
+                                                                 ]
+                                                   }
+                             }
+            },
+    "bundle":  {
+                   "active":  true,
+                   "targets":  [
+                                   "nsis"
+                               ],
+                   "icon":  [
+                                "icons/icon.png",
+                                "icons/icon.ico"
+                            ]
+               }
+}

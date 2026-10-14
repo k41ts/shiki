@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; cursor: crosshair; user-select: none; }
+  /* Not fully transparent, so the window still receives the mouse. */
+  body { background: radial-gradient(ellipse at center, rgba(10, 14, 30, 0.10), rgba(10, 14, 30, 0.32)); }
+  canvas { position: fixed; inset: 0; }
+  .hint {
+    position: fixed; left: 50%; bottom: 48px; transform: translateX(-50%);
+    padding: 8px 16px; border-radius: 999px;
+    background: rgba(16, 17, 24, 0.9); color: #e8ebf5;
+    font: 500 13px "Segoe UI Variable Text", "Segoe UI", sans-serif;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+</style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="hint">Lingkari sesuatu, lalu bicara. Lepas tombol untuk kirim.</div>
+<script>
+  const { invoke } = window.__TAURI__.core;
+  const { listen } = window.__TAURI__.event;
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  let points = [], drawing = false, lastSent = 0;
+
+  function resize() {
+    const dpr = devicePixelRatio;
+    canvas.width = innerWidth * dpr;
+    canvas.height = innerHeight * dpr;
+    canvas.style.width = innerWidth + 'px';
+    canvas.style.height = innerHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    if (points.length < 2) return;
+    ctx.lineCap = ctx.lineJoin = 'round';
+    for (const [width, color, blur] of [[10, 'rgba(127,210,255,0.35)', 18], [4, '#bfe8ff', 6]]) {
+      ctx.beginPath();
+      ctx.moveTo(points[0][0], points[0][1]);
+      for (let i = 1; i < points.length - 1; i++) {
+        const [x, y] = points[i], [nx, ny] = points[i + 1];
+        ctx.quadraticCurveTo(x, y, (x + nx) / 2, (y + ny) / 2);
+      }
+      ctx.lineWidth = width; ctx.strokeStyle = color;
+      ctx.shadowColor = '#7fd2ff'; ctx.shadowBlur = blur;
+      ctx.stroke();
+    }
+  }
+
+  function send(force) {
+    const now = performance.now();
+    if (points.length < 4 || (!force && now - lastSent < 100)) return;
+    lastSent = now;
+    const dpr = devicePixelRatio;
+    const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+    const bbox = [Math.min(...xs) * dpr, Math.min(...ys) * dpr, Math.max(...xs) * dpr, Math.max(...ys) * dpr];
+    invoke('set_circle', { bbox });
+  }
+
+  addEventListener('pointerdown', e => { drawing = true; points = [[e.clientX, e.clientY]]; draw(); });
+  addEventListener('pointermove', e => {
+    if (!drawing) return;
+    points.push([e.clientX, e.clientY]);
+    requestAnimationFrame(draw);
+    send(false);
+  });
+  addEventListener('pointerup', () => { drawing = false; send(true); });
+  addEventListener('resize', () => { resize(); draw(); });
+  listen('overlay-reset', () => { points = []; drawing = false; resize(); draw(); });
+  resize();
+</script>
+</body>
+</html>

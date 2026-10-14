@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  /* Sits just above the desktop and below every other window: the new wallpaper opens up
+     from the centre in a growing circle, then the real wallpaper takes over underneath. */
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  img { position: fixed; inset: 0; width: 100vw; height: 100vh; object-fit: cover; clip-path: circle(0% at 50% 50%); }
+  .ring { position: fixed; left: 50%; top: 50%; width: 0; height: 0; border-radius: 50%; translate: -50% -50%;
+    border: 3px solid rgba(255, 255, 255, 0.7); box-shadow: 0 0 40px rgba(255, 255, 255, 0.35); opacity: 0; pointer-events: none; }
+  .go img { clip-path: circle(72% at 50% 50%); transition: clip-path 950ms cubic-bezier(0.65, 0, 0.35, 1); }
+  .go .ring { width: 210vmax; height: 210vmax; opacity: 0;
+    transition: width 950ms cubic-bezier(0.65, 0, 0.35, 1), height 950ms cubic-bezier(0.65, 0, 0.35, 1), opacity 950ms ease-in;
+    animation: ring-in 950ms both; }
+  @keyframes ring-in { 0% { opacity: 0; } 10% { opacity: 1; } 100% { opacity: 0; } }
+  .out img { opacity: 0; transition: opacity 280ms ease; }
+  @media (prefers-reduced-motion: reduce) { .go img { transition-duration: 1ms; } .ring { display: none; } }
+</style>
+</head>
+<body>
+<img id="img" alt="">
+<div class="ring"></div>
+<script>
+  const { listen } = window.__TAURI__.event;
+  const { convertFileSrc } = window.__TAURI__.core;
+  const img = document.getElementById('img');
+
+  listen('wallfx', async ({ payload: path }) => {
+    document.body.className = '';
+    img.src = convertFileSrc(path);
+    try { await img.decode(); } catch {}
+    void document.body.offsetWidth; // start from the closed circle
+    document.body.className = 'go';
+  });
+  listen('wallfx-hide', () => { document.body.className = 'go out'; });
+</script>
+</body>
+</html>

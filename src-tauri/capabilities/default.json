@@ -1,0 +1,12 @@
+{
+    "identifier":  "default",
+    "windows":  [
+                    "island",
+                    "overlay",
+                    "settings",
+                    "wallfx"
+                ],
+    "permissions":  [
+                        "core:default"
+                    ]
+}

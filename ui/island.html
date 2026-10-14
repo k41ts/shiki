@@ -1,0 +1,1082 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    interpolate-size: allow-keywords;
+    --bg: #0a0a0d;
+    --card: #15161c;
+    --card-2: #1c1d25;
+    --line: rgba(255, 255, 255, 0.07);
+    --text: #f2f3f7;
+    --muted: #8b90a3;
+    --accent: #e2b65a;
+    --accent-ink: #1c1405;
+    --danger: #ff6b6b;
+    --soul: #ffb43a;
+    --eye: #d9a33a;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  body { font: 13.5px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: var(--text); user-select: none; }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
+  input { font: inherit; color: inherit; }
+  svg { display: block; }
+
+  /* ---------- island shell ---------- */
+  #island {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    background: var(--bg);
+    border: 1px solid rgba(255, 255, 255, 0.06); border-top: 0;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
+    overflow: hidden;
+    width: 132px; height: 34px; border-radius: 0 0 18px 18px;
+    transition: width 420ms var(--spring), height 420ms var(--spring), border-radius 300ms var(--ease-out), opacity 200ms ease, transform 200ms ease;
+  }
+  #island.idle:hover { width: 148px; height: 36px; }
+  #island.active { width: max-content; height: auto; max-width: min(560px, calc(100vw - 16px)); border-radius: 0 0 22px 22px; }
+  #island.open { width: min(760px, calc(100vw - 16px)); height: min(var(--h, 480px), calc(100vh - 8px)); border-radius: 0 0 26px 26px; }
+  /* each tab gets the height it needs, like Hitodama */
+  #island[data-tab="controls"] { --h: 392px; }
+  #island[data-tab="today"] { --h: 352px; }
+  #island[data-tab="stats"] { --h: 290px; }
+  #island[data-tab="clipboard"] { --h: 440px; }
+  #island[data-tab="apps"] { --h: 450px; }
+  #island[data-tab="wallpaper"] { --h: 268px; }
+  #island[data-tab="power"] { --h: 210px; }
+  /* mini player in the collapsed notch while music plays */
+  #island.idle.music { width: max-content; max-width: 380px; }
+  #island.idle.music .notch { justify-content: flex-start; }
+  .mini { display: none; align-items: center; gap: 8px; min-width: 0; padding-top: 1px; }
+  #island.idle.music .mini { display: flex; }
+  .mini .mart { width: 20px; height: 20px; border-radius: 5px; background: var(--card-2) center / cover; flex: none; }
+  .mini .mtitle { font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
+  .eq { display: flex; gap: 2px; align-items: flex-end; height: 12px; flex: none; }
+  .eq i { width: 2px; border-radius: 1px; background: var(--accent); animation: eq 0.9s ease-in-out infinite; }
+  .eq i:nth-child(2) { animation-delay: -0.3s; } .eq i:nth-child(3) { animation-delay: -0.6s; }
+  @keyframes eq { 0%, 100% { height: 3px; } 50% { height: 12px; } }
+  #island.hidden { opacity: 0; transform: translate(-50%, -100%); pointer-events: none; }
+
+  .notch { display: flex; align-items: flex-start; gap: 10px; padding: 6px 16px 7px; min-height: 34px; cursor: pointer; }
+  #island.idle .notch { justify-content: center; }
+  #island.open .notch { display: none; }
+  .activity { display: none; align-items: flex-start; gap: 10px; padding-top: 1px; min-width: 0; }
+  #island.active .activity { display: flex; }
+  .activity .text {
+    font-weight: 500; white-space: pre-wrap; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden;
+    animation: fade-in 260ms var(--ease-out) 160ms both; /* after the notch has mostly grown */
+  }
+  [data-state="listening"] .activity .text, [data-state="thinking"] .activity .text { color: var(--muted); }
+  [data-state="thinking"] .activity .text {
+    background: linear-gradient(90deg, var(--muted) 30%, #fff 50%, var(--muted) 70%) 0 0 / 220% 100%;
+    -webkit-background-clip: text; color: transparent; animation: shimmer 1.6s linear infinite;
+  }
+  @keyframes shimmer { to { background-position: -220% 0; } }
+  @keyframes fade-in { from { opacity: 0; transform: translateY(-3px); } }
+
+  .bars { display: none; align-items: center; gap: 3px; height: 20px; }
+  [data-state="listening"] .bars { display: flex; }
+  .bars i { width: 3px; height: 4px; border-radius: 2px; background: var(--soul); transition: height 90ms ease-out; }
+
+  /* ---------- Shiki's mask: states ---------- */
+  /* masks.js draws the mask and its idle colours; the island's state recolours eyes and aura. */
+  [data-state="listening"] { --soul: #ffd23a; --eye: #ffe36b; }
+  [data-state="listening"] .soul .eyes { animation: none; }
+  [data-state="thinking"] { --soul: #a86bff; --eye: #d29bff; }
+  [data-state="thinking"] .soul .body { animation: menace 1.1s ease-in-out infinite; }
+  [data-state="done"] { --soul: #4dffa0; --eye: #8dffc4; }
+  [data-state="error"] { --soul: #ff1a2e; --eye: #ff4a4a; }
+  @keyframes menace { 25% { transform: rotate(-4deg) scale(1.03); } 75% { transform: rotate(4deg) scale(1.03); } }
+  /* while Shiki talks back, its eyes pulse */
+  #island.speaking .soul .glow { animation: speak-pulse 0.5s ease-in-out infinite alternate; }
+  @keyframes speak-pulse { to { filter: drop-shadow(0 0 2.5px var(--eye)) brightness(1.5); } }
+  .soul.big { width: 64px; height: 64px; }
+
+  /* ---------- panel ---------- */
+  .panel { display: none; flex-direction: column; height: 100%; }
+  #island.open .panel { display: flex; animation: panel-in 360ms var(--ease-out) both; }
+  @keyframes panel-in { from { opacity: 0; } }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 14px 10px 18px; }
+  nav { display: flex; gap: 2px; flex: 1; justify-content: center; }
+  nav button { padding: 5px 11px; border-radius: 999px; color: var(--muted); font-size: 12.5px; font-weight: 500; transition: background 160ms, color 160ms; }
+  nav button:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+  nav button.on { color: var(--accent-ink); background: var(--accent); }
+  .icon-btn { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); transition: background 160ms, color 160ms, transform 120ms; }
+  .icon-btn:hover { background: rgba(255, 255, 255, 0.07); color: var(--text); }
+  .icon-btn:active, .btn:active, .tile:active { transform: scale(0.95); }
+
+  main { flex: 1; min-height: 0; padding: 4px 18px 18px; }
+  section { display: none; height: 100%; }
+  section.on { display: flex; flex-direction: column; animation: fade-in 240ms var(--ease-out) both; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+  .muted { color: var(--muted); }
+  .label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .btn { padding: 7px 12px; border-radius: 10px; background: var(--card-2); font-weight: 500; transition: background 160ms, transform 120ms; }
+  .btn:hover { background: #262833; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .field { width: 100%; padding: 9px 13px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); outline: none; transition: border-color 160ms; }
+  .field:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+  .scroll { overflow-y: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: #2a2c36 transparent; }
+  .empty { display: grid; place-items: center; gap: 6px; text-align: center; color: var(--muted); padding: 30px 0; }
+
+  /* chat */
+  .chat-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  #messages { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px 10px; }
+  .msg { max-width: 78%; padding: 8px 12px; border-radius: 16px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; animation: fade-in 220ms var(--ease-out) both; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 6px; }
+  .msg.assistant { align-self: flex-start; background: var(--card-2); border-bottom-left-radius: 6px; }
+  .msg.error { align-self: flex-start; background: rgba(255, 107, 107, 0.12); color: #ffb3b3; }
+  .tool { align-self: flex-start; font-size: 12px; color: var(--muted); padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; animation: fade-in 220ms var(--ease-out) both; }
+  .typing { align-self: flex-start; display: flex; gap: 4px; padding: 12px 14px; background: var(--card-2); border-radius: 16px; }
+  .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: dot 1.1s infinite; }
+  .typing i:nth-child(2) { animation-delay: 0.15s; } .typing i:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes dot { 30% { transform: translateY(-4px); opacity: 1; } 0%, 60%, 100% { opacity: 0.4; } }
+  .suggest { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+  .suggest button { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); color: var(--text); transition: background 160ms, border-color 160ms; }
+  .suggest button:hover { background: var(--card-2); border-color: rgba(255, 255, 255, 0.14); }
+  .composer { display: flex; gap: 8px; }
+  .composer .btn { width: 40px; display: grid; place-items: center; padding: 0; border-radius: 12px; }
+  .hint { font-size: 11.5px; color: var(--muted); margin-top: 6px; text-align: center; }
+
+  /* controls */
+  .ctl-grid { display: flex; flex-direction: column; gap: 10px; height: 100%; }
+  .togs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .tog { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 14px; background: var(--card-2); text-align: left; min-width: 0;
+    transition: background 200ms, color 200ms, transform 120ms; }
+  .tog:active { transform: scale(0.97); }
+  .tog .ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, 0.06); flex: none; transition: background 200ms; }
+  .tog b { display: block; font-size: 12.5px; font-weight: 600; }
+  .tog small { display: block; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tog.on { background: var(--accent); color: var(--accent-ink); }
+  .tog.on small { color: color-mix(in srgb, var(--accent-ink) 70%, transparent); }
+  .tog.on .ic { background: rgba(0, 0, 0, 0.12); }
+  .tog.na { opacity: 0.4; pointer-events: none; }
+  .slider-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 14px; background: var(--card-2); }
+  .slider-row span { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted); width: 38px; text-align: right; }
+  input[type=range].slider { flex: 1; appearance: none; height: 6px; border-radius: 3px; outline: none; cursor: pointer;
+    background: linear-gradient(var(--accent), var(--accent)) 0 / var(--p, 50%) 100% no-repeat, #2a2c36; }
+  input[type=range].slider::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
+  .player { display: flex; gap: 14px; align-items: center; padding: 12px; border-radius: 16px; background: var(--card-2); min-width: 0; }
+  .now { display: flex; gap: 14px; align-items: center; }
+  .art { width: 72px; height: 72px; border-radius: 12px; flex: none; background: #22232c center / cover; display: grid; place-items: center; color: var(--muted); }
+  .player .meta { min-width: 0; flex: 1; }
+  .player .title { font-size: 14.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .player .artist { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .transport { display: flex; gap: 6px; flex: none; }
+  .progress-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .progress { flex: 1; height: 14px; display: flex; align-items: center; cursor: pointer; position: relative; }
+  .progress::before { content: ""; flex: 1; height: 4px; border-radius: 2px; background: #2f313c; }
+  .progress i { position: absolute; left: 0; height: 4px; border-radius: 2px; background: var(--text); transition: width 1.5s linear; }
+  .progress:hover i { background: var(--accent); }
+  .progress.off { cursor: default; opacity: 0.4; }
+  .transport .icon-btn { width: 36px; height: 36px; color: var(--text); background: rgba(255, 255, 255, 0.06); }
+  .transport .play { background: var(--text); color: var(--bg); }
+  .transport .play:hover { background: #fff; color: var(--bg); }
+  .quick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+  .tile { display: grid; justify-items: center; gap: 6px; padding: 10px 4px; border-radius: 14px; background: var(--card-2); font-size: 11.5px; transition: background 160ms, transform 120ms; text-align: center; }
+  .tile:hover { background: #262833; }
+  .tile svg { color: var(--accent); }
+
+  /* today */
+  .today-grid { display: grid; grid-template-columns: 120px minmax(0, 1.35fr) minmax(0, 1fr); gap: 10px; height: 100%; }
+  .today-grid > * { min-width: 0; }
+  .bigclock { display: grid; place-content: center; justify-items: center; gap: 2px; text-align: center; }
+  .bigclock b { font: 600 46px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .bigclock .dots { color: var(--accent); letter-spacing: 3px; font-size: 10px; line-height: 1; }
+  .bigclock small { color: var(--muted); font-size: 11.5px; margin-top: 6px; }
+  .midcol { display: grid; grid-template-rows: auto 1fr; gap: 10px; min-height: 0; }
+  .week-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .week-head b { font-size: 13px; } .week-head span { color: var(--muted); font-size: 11.5px; }
+  .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+  .week div { padding: 5px 0; border-radius: 9px; font-size: 11px; color: var(--muted); }
+  .week div b { display: block; font-size: 14px; color: var(--text); font-weight: 600; margin-top: 1px; }
+  .week div.today { background: var(--accent); color: var(--accent-ink); }
+  .week div.today b { color: var(--accent-ink); }
+  .next { margin-top: 10px; padding: 7px 10px; border-left: 3px solid var(--accent); border-radius: 6px; background: rgba(255, 255, 255, 0.04); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .next small { color: var(--muted); display: block; font-size: 11px; }
+  .pomo { display: flex; gap: 14px; align-items: center; }
+  .pring { --v: 100; width: 92px; height: 92px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    background: radial-gradient(closest-side, var(--card) 84%, transparent 85% 100%), conic-gradient(var(--accent) calc(var(--v) * 1%), #2f313c 0); }
+  .pring b { font: 600 20px "Segoe UI Variable Display", "Segoe UI", sans-serif; font-variant-numeric: tabular-nums; }
+  .pomo-side { flex: 1; min-width: 0; display: grid; gap: 8px; }
+  .chips { display: flex; gap: 4px; flex-wrap: wrap; }
+  .chips button { padding: 3px 9px; border-radius: 999px; font-size: 11.5px; color: var(--muted); background: rgba(255, 255, 255, 0.05); transition: background 160ms, color 160ms; }
+  .chips button.on { background: var(--accent); color: var(--accent-ink); }
+  .pomo-btns { display: flex; gap: 6px; } .pomo-btns .btn { flex: 1; padding: 6px 10px; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li.row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  li.row:last-child { border-bottom: 0; }
+  li.row .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  li.row small { display: block; color: var(--muted); font-size: 11.5px; }
+  .check { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--muted); flex: none; transition: border-color 160ms, background 160ms; }
+  .check:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 25%, transparent); }
+  .x { color: var(--muted); padding: 2px 6px; border-radius: 6px; } .x:hover { color: var(--danger); }
+  .todo-add { display: flex; gap: 6px; margin-top: 6px; }
+  .todo-add input { padding: 7px 11px; font-size: 12.5px; }
+  .todo-add .btn { width: 34px; padding: 0; display: grid; place-items: center; }
+
+  /* stats */
+  .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; height: 100%; }
+  .gauges .gauge { align-content: center; }
+  .gauge { display: grid; justify-items: center; gap: 10px; padding: 22px 10px; }
+  .ring { --v: 0; width: 120px; height: 120px; border-radius: 50%; display: grid; place-items: center;
+    background: radial-gradient(closest-side, var(--card) 79%, transparent 80% 100%), conic-gradient(var(--accent) calc(var(--v) * 1%), #262833 0);
+    transition: --v 600ms var(--ease-out); }
+  .ring b { font: 600 24px "Segoe UI Variable Display", "Segoe UI", sans-serif; font-variant-numeric: tabular-nums; }
+  @property --v { syntax: "<number>"; inherits: false; initial-value: 0; }
+
+  /* clipboard */
+  .clip-top { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .clip-top .field { flex: 1; padding: 8px 12px; }
+  .clip-body { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 10px; flex: 1; min-height: 0; }
+  .clip-list { display: flex; flex-direction: column; gap: 4px; }
+  .clip { display: flex; gap: 10px; align-items: center; text-align: left; width: 100%; padding: 8px 10px; border-radius: 10px; transition: background 140ms; }
+  .clip:hover { background: var(--card-2); }
+  .clip.sel { background: color-mix(in srgb, var(--accent) 18%, var(--card-2)); }
+  .clip .kind { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.06); color: var(--muted); flex: none; font-size: 11px; }
+  .clip span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .clip-preview { display: flex; flex-direction: column; min-height: 0; }
+  .clip-preview pre { flex: 1; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; overflow-y: auto; font: 12.5px/1.5 "Segoe UI Variable Text", "Segoe UI", sans-serif; user-select: text; }
+  .clip-meta { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 11.5px; color: var(--muted); margin: 10px 0; }
+  .clip-meta b { color: var(--text); font-weight: 500; }
+  .clip-actions { display: flex; gap: 6px; } .clip-actions .btn { flex: 1; }
+
+  /* apps */
+  .apps { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
+  .sect { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 10px 8px 4px; }
+  .sect:first-child { margin-top: 2px; }
+  .arow { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-radius: 10px; text-align: left; transition: background 140ms; }
+  .arow:hover, .arow.first { background: var(--card-2); }
+  .arow .icon, .arow .mono { width: 28px; height: 28px; flex: none; }
+  .arow .icon { object-fit: contain; animation: fade-in 200ms var(--ease-out) both; }
+  .arow .mono { border-radius: 8px; display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #0b0b10; }
+  .arow .name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+  .arow .type { color: var(--muted); font-size: 11.5px; }
+  .star { color: #4a4d5a; padding: 2px 4px; border-radius: 6px; transition: color 160ms, transform 160ms; }
+  .star:hover { color: var(--muted); transform: scale(1.15); }
+  .star.on { color: var(--accent); }
+
+  /* wallpaper: slanted strip, the selected card opens wide */
+  .wall-bar { display: flex; align-items: center; gap: 10px; }
+  .seg { display: flex; gap: 2px; padding: 3px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; }
+  .seg button { padding: 3px 12px; border-radius: 999px; color: var(--muted); font-size: 12px; font-weight: 500; transition: background 160ms, color 160ms; }
+  .seg button.on { background: var(--accent); color: var(--accent-ink); }
+  .wall-count { flex: 1; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .strip-wrap { flex: 1; min-height: 0; position: relative; overflow: hidden; display: flex; align-items: center; }
+  .strip { display: flex; gap: 10px; align-items: center; transition: transform 560ms var(--spring); will-change: transform; }
+  .wcard { flex: none; position: relative; height: 128px; width: 34px; border-radius: 12px; overflow: hidden; transform: skewX(-12deg);
+    background: var(--card-2); filter: brightness(0.62) saturate(0.85); cursor: pointer;
+    transition: width 560ms var(--spring), filter 320ms ease, box-shadow 320ms ease; }
+  .wcard i { position: absolute; inset: 0 -40px; background: center / cover; transform: skewX(12deg); }
+  .wcard.near { width: 62px; filter: brightness(0.78); }
+  .wcard.active { width: 232px; filter: none; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55); }
+  .wcard:hover:not(.active) { filter: brightness(0.95); }
+  .wcard.current::after { content: ""; position: absolute; top: 9px; right: 14px; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  .wcard.apply { animation: wcard-apply 700ms var(--ease-out); }
+  @keyframes wcard-apply { 40% { transform: skewX(-12deg) scale(1.06); filter: brightness(1.3); } }
+  .wall-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px; }
+  .wall-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wall-hint { color: var(--muted); white-space: nowrap; }
+
+  /* power */
+  .power { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 8px; }
+  .power .tile { padding: 22px 6px; font-size: 13px; }
+  .power .tile.danger svg { color: var(--danger); }
+  .power .tile.confirm { background: rgba(255, 107, 107, 0.16); color: #ffc2c2; }
+
+  .toast { position: absolute; left: 50%; bottom: 14px; transform: translate(-50%, 8px); opacity: 0; padding: 6px 14px; border-radius: 999px;
+    background: var(--text); color: var(--bg); font-weight: 600; font-size: 12.5px; transition: opacity 180ms, transform 240ms var(--spring); pointer-events: none; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+  }
+</style>
+</head>
+<body>
+<div id="island" class="idle" data-state="idle">
+  <div class="notch" id="notch">
+    <span class="soul-slot"></span>
+    <div class="mini" id="mini"><span class="mart" id="mini-art"></span><span class="mtitle" id="mini-title"></span><span class="eq"><i></i><i></i><i></i></span></div>
+    <div class="activity">
+      <div class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="text" id="activity-text"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <header>
+      <span class="soul-slot"></span>
+      <nav id="tabs">
+        <button data-tab="chat" class="on">Chat</button>
+        <button data-tab="controls">Controls</button>
+        <button data-tab="today">Today</button>
+        <button data-tab="stats">Stats</button>
+        <button data-tab="clipboard">Clipboard</button>
+        <button data-tab="apps">Apps</button>
+        <button data-tab="wallpaper">Wallpaper</button>
+        <button data-tab="power">Power</button>
+      </nav>
+      <button class="icon-btn" id="settings-btn" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+      <button class="icon-btn" id="close-btn" title="Tutup (Esc)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg></button>
+    </header>
+
+    <main>
+      <!-- CHAT -->
+      <section id="tab-chat" class="on">
+        <div id="messages" class="scroll"></div>
+        <form class="composer" id="composer">
+          <input class="field" id="chat-input" placeholder="Tanya atau suruh Shiki apa saja…" autocomplete="off" spellcheck="false">
+          <button class="btn primary" title="Kirim"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        </form>
+        <div class="hint">Tahan <b>Ctrl+Shift</b> untuk bicara · <b>Ctrl+Win</b> untuk dikte · <a id="new-chat" style="cursor:pointer;text-decoration:underline">Obrolan baru</a></div>
+      </section>
+
+      <!-- CONTROLS -->
+      <section id="tab-controls">
+        <div class="ctl-grid">
+          <div class="togs">
+            <button class="tog" id="tog-wifi"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.6a10 10 0 0 1 14 0M8.5 16.3a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg></span><span><b>Wi-Fi</b><small>…</small></span></button>
+            <button class="tog" id="tog-bt"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg></span><span><b>Bluetooth</b><small>…</small></span></button>
+            <button class="tog" id="tog-audio"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg></span><span><b>Audio</b><small>…</small></span></button>
+            <button class="tog" id="tog-dark"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/></svg></span><span><b>Mode gelap</b><small>…</small></span></button>
+          </div>
+          <div class="slider-row">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="color:var(--muted)"><path d="M11 5L6 9H2v6h4l5 4z"/></svg>
+            <input type="range" class="slider" id="volume" min="0" max="100" value="50">
+            <span id="volume-val">–</span>
+          </div>
+          <div class="player">
+            <div class="art" id="art"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+            <div class="meta">
+              <div class="title" id="media-title">Tidak ada yang diputar</div>
+              <div class="artist" id="media-artist">Putar musik di Spotify, YouTube, dll.</div>
+              <div class="progress-row">
+                <span id="media-pos">0:00</span>
+                <div class="progress off" id="progress" title="Klik untuk lompat"><i id="progress-fill" style="width:0"></i></div>
+                <span id="media-dur">0:00</span>
+              </div>
+            </div>
+            <div class="transport">
+              <button class="icon-btn" data-media="prev" title="Sebelumnya"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+              <button class="icon-btn play" data-media="toggle" title="Play/Pause" id="play-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg></button>
+              <button class="icon-btn" data-media="next" title="Berikutnya"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5l11 7-11 7z"/></svg></button>
+            </div>
+          </div>
+          <div class="quick">
+            <button class="tile" data-global="win+d"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Desktop</button>
+            <button class="tile" data-global="win+shift+s"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/></svg>Screenshot</button>
+            <button class="tile" data-global="win+e"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Explorer</button>
+            <button class="tile" data-global="ctrl+shift+esc"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Task Manager</button>
+            <button class="tile" data-global="win+i"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>Settings</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- TODAY -->
+      <section id="tab-today">
+        <div class="today-grid">
+          <div class="card bigclock">
+            <b id="clock-h">00</b><div class="dots">•••</div><b id="clock-m">00</b>
+            <small id="clock-date"></small>
+          </div>
+          <div class="midcol">
+            <div class="card">
+              <div class="week-head"><b>Minggu ini</b><span id="week-range"></span></div>
+              <div class="week" id="week"></div>
+              <div class="next" id="next-task"></div>
+            </div>
+            <div class="card pomo">
+              <div class="pring" id="pomo-ring"><b id="pomo-time">25:00</b></div>
+              <div class="pomo-side">
+                <div class="label">Fokus</div>
+                <div class="chips" id="pomo-chips"><button data-min="5">5m</button><button data-min="15">15m</button><button data-min="25" class="on">25m</button><button data-min="45">45m</button></div>
+                <div class="pomo-btns"><button class="btn primary" id="pomo-start">Mulai</button><button class="btn" id="pomo-reset">Reset</button></div>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="display:flex;flex-direction:column;min-height:0">
+            <div class="week-head"><b>Hari ini</b><span id="todo-count"></span></div>
+            <ul id="todo-list" class="scroll" style="flex:1"></ul>
+            <form id="todo-form" class="todo-add">
+              <input class="field" id="todo-text" placeholder="Tambah to-do…" autocomplete="off">
+              <button class="btn primary" title="Tambah">+</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- STATS -->
+      <section id="tab-stats">
+        <div class="gauges">
+          <div class="card gauge"><div class="ring" id="cpu-ring"><b id="cpu-val">0%</b></div><div class="label">CPU</div></div>
+          <div class="card gauge"><div class="ring" id="ram-ring"><b id="ram-val">0%</b></div><div class="label">RAM <span id="ram-detail" class="muted" style="text-transform:none;letter-spacing:0"></span></div></div>
+          <div class="card gauge"><div class="ring" id="bat-ring"><b id="bat-val">–</b></div><div class="label" id="bat-label">Baterai</div></div>
+        </div>
+      </section>
+
+      <!-- CLIPBOARD -->
+      <section id="tab-clipboard">
+        <div class="clip-top">
+          <input class="field" id="clip-search" placeholder="Cari di clipboard…" autocomplete="off" spellcheck="false">
+          <div class="seg" id="clip-filter"><button data-f="all" class="on">Semua</button><button data-f="text">Teks</button><button data-f="link">Link</button></div>
+          <button class="icon-btn" id="clip-clear" title="Bersihkan riwayat"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button>
+        </div>
+        <div class="clip-body">
+          <div id="clips" class="scroll clip-list"></div>
+          <div class="card clip-preview" id="clip-preview"></div>
+        </div>
+      </section>
+
+      <!-- APPS -->
+      <section id="tab-apps">
+        <input class="field" id="app-search" placeholder="Cari aplikasi…" autocomplete="off" spellcheck="false">
+        <div id="apps" class="apps scroll" style="flex:1"></div>
+      </section>
+
+      <!-- WALLPAPER -->
+      <section id="tab-wallpaper">
+        <div class="wall-bar">
+          <div class="seg" id="wall-seg"><button data-src="recent" class="on">Recent</button><button data-src="folder">My folder</button></div>
+          <span class="wall-count" id="wall-count"></span>
+          <button class="icon-btn" id="wall-folder" title="Pilih folder"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+        </div>
+        <div class="strip-wrap" id="walls"></div>
+        <div class="wall-foot"><span class="wall-name" id="wall-name"></span><span class="wall-hint" id="wall-hint"></span></div>
+      </section>
+
+      <!-- POWER -->
+      <section id="tab-power">
+        <div class="muted">Restart, matikan dan keluar akun butuh klik dua kali.</div>
+        <div class="power">
+          <button class="tile" data-power="lock"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Kunci</button>
+          <button class="tile" data-power="sleep"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/></svg>Tidur</button>
+          <button class="tile danger" data-power="signout" data-confirm><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Keluar akun</button>
+          <button class="tile danger" data-power="restart" data-confirm><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>Restart</button>
+          <button class="tile danger" data-power="shutdown" data-confirm><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>Matikan</button>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div class="toast" id="toast"></div>
+</div>
+
+
+
+<script src="masks.js"></script>
+<script>
+  const { invoke } = window.__TAURI__.core;
+  const { listen } = window.__TAURI__.event;
+  const $ = id => document.getElementById(id);
+  const island = $('island');
+
+  // Shiki's mask comes from masks.js; which one is chosen in the Loadout.
+  let mask = 'hannya';
+  function soulSvg(big) { return maskSvg(mask, big); }
+  function setMask(m) {
+    mask = m || 'hannya';
+    applyMaskColours(mask);
+    document.querySelectorAll('svg.soul').forEach(svg => { svg.outerHTML = soulSvg(svg.classList.contains('big')); });
+  }
+  document.querySelectorAll('.soul-slot').forEach(s => s.outerHTML = soulSvg(false));
+  invoke('get_config').then(cfg => setMask(cfg.mask));
+  listen('config-changed', ({ payload: cfg }) => setMask(cfg.mask));
+
+  // Shiki watches the cursor anywhere on screen. Rust sends its position (relative to this window)
+  // only when it moves.
+  listen('cursor', ({ payload: [x, y] }) => lookAt(x / devicePixelRatio, y / devicePixelRatio));
+
+  // Spoken replies (Loadout › Voice). The eyes pulse while it talks.
+  let voice = null;
+  listen('speak', ({ payload: src }) => {
+    voice?.pause();
+    voice = new Audio(src);
+    island.classList.add('speaking');
+    const done = () => island.classList.remove('speaking');
+    voice.onended = done; voice.onerror = done;
+    voice.play().catch(done);
+  });
+
+  function h(tag, props = {}, ...children) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+      if (k === 'class') el.className = v;
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else if (k === 'style') el.style.cssText = v;
+      else el.setAttribute(k, v);
+    }
+    for (const c of children.flat()) if (c != null) el.append(c);
+    return el;
+  }
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1700);
+  }
+
+  // ---------- modes: idle / active (status text) / open (panel) ----------
+  let mode = 'idle', fullscreen = false, activityTimer, leaveTimer;
+
+  function setMode(m) {
+    mode = m;
+    island.classList.remove('idle', 'active', 'open');
+    island.classList.add(m);
+    island.classList.toggle('hidden', fullscreen && m === 'idle');
+    if (m !== 'active') island.dataset.state = 'idle';
+    reportSoon();
+  }
+
+  function openPanel(tab) {
+    clearTimeout(activityTimer);
+    setMode('open');
+    if (tab) showTab(tab); else onTabShown(currentTab);
+  }
+
+  function closePanel() {
+    if (mode !== 'open') return;
+    setMode('idle');
+    stopPolling();
+    if (document.hasFocus()) invoke('restore_focus');
+  }
+
+  // Tell Rust which part of the window should catch the mouse; the rest stays click-through.
+  let reportQueued = false;
+  function report() {
+    reportQueued = false;
+    const r = island.getBoundingClientRect(), dpr = devicePixelRatio, pad = 6;
+    const rect = island.classList.contains('hidden') ? [0, 0, 0, 0]
+      : [(r.left - pad) * dpr, 0, (r.width + pad * 2) * dpr, (r.bottom + pad) * dpr];
+    invoke('set_hit_rect', { rect });
+  }
+  function reportSoon() { if (!reportQueued) { reportQueued = true; requestAnimationFrame(report); } }
+  new ResizeObserver(reportSoon).observe(island);
+  island.addEventListener('transitionend', reportSoon);
+
+  $('notch').addEventListener('click', () => openPanel(mode === 'active' ? 'chat' : island.classList.contains('music') ? 'controls' : null));
+  island.addEventListener('wheel', e => {
+    if (mode !== 'open' && e.deltaY > 0) openPanel();
+    else if (mode === 'open' && e.deltaY < 0 && e.target.closest('header')) closePanel();
+  }, { passive: true });
+  island.addEventListener('mouseenter', () => clearTimeout(leaveTimer));
+  island.addEventListener('mouseleave', () => {
+    if (mode !== 'open') return;
+    clearTimeout(leaveTimer);
+    leaveTimer = setTimeout(() => {
+      const typing = document.activeElement?.tagName === 'INPUT' && document.activeElement.value;
+      if (!typing) closePanel();
+    }, 700);
+  });
+  addEventListener('blur', () => { if (mode === 'open' && !picking) { setMode('idle'); stopPolling(); } });
+  addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
+  $('close-btn').onclick = closePanel;
+  $('settings-btn').onclick = () => { closePanel(); invoke('show_settings'); };
+
+  // ---------- status from the backend (voice, replies, errors) ----------
+  const bars = [...document.querySelectorAll('#bars i')];
+  const shape = [0.55, 0.85, 1, 0.8, 0.6];
+
+  listen('island', ({ payload: { state, text } }) => showActivity(state, text));
+  function showActivity(state, text) {
+    clearTimeout(activityTimer);
+    if (mode === 'open' && state !== 'listening') return; // the chat already shows it
+    if (state === 'hide') return setMode('idle');
+    if (mode === 'open') setMode('idle');
+    island.dataset.state = state;
+    $('activity-text').textContent = text;
+    setMode('active');
+    island.dataset.state = state;
+    if (state === 'done' || state === 'error') {
+      const secs = Math.max(state === 'error' ? 6 : 4, text.length / 14);
+      activityTimer = setTimeout(() => setMode('idle'), secs * 1000);
+    }
+  }
+  listen('level', ({ payload: level }) => {
+    const v = Math.min(1, level * 9);
+    bars.forEach((b, i) => { b.style.height = `${4 + v * 15 * shape[i] * (0.75 + Math.random() * 0.5)}px`; });
+  });
+  listen('fullscreen', ({ payload }) => { fullscreen = payload; setMode(mode); });
+
+  // ---------- tabs ----------
+  let currentTab = 'chat';
+  island.dataset.tab = 'chat';
+  function showTab(name) {
+    currentTab = name;
+    island.dataset.tab = name;
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+    document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === `tab-${name}`));
+    stopPolling();
+    onTabShown(name);
+  }
+  document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+  let pollTimer;
+  function poll(fn, ms) { fn(); pollTimer = setInterval(fn, ms); }
+  function stopPolling() { clearInterval(pollTimer); }
+
+  function onTabShown(name) {
+    ({
+      chat: () => setTimeout(() => $('chat-input').focus(), 50),
+      controls: () => { let n = 0; poll(() => { refreshMedia(); if (n++ % 3 === 0) refreshControls(); }, 1500); },
+      today: () => { poll(tickClock, 1000); refreshToday(); },
+      stats: () => poll(refreshStats, 1000),
+      clipboard: refreshClips,
+      apps: loadApps,
+      wallpaper: loadWalls,
+    })[name]?.();
+  }
+
+  // ---------- chat ----------
+  const messages = $('messages');
+  const toolLabel = {
+    open_app: a => `Membuka ${a.name}`,
+    search: a => `Mencari "${a.query}"${a.site ? ` di ${a.site}` : ''}`,
+    media_seek: a => a.mode === 'forward' ? `Maju ${a.seconds} detik` : a.mode === 'back' ? `Mundur ${a.seconds} detik` : `Lompat ke ${Math.floor(a.seconds / 60)}:${String(Math.round(a.seconds % 60)).padStart(2, '0')}`,
+    media_control: a => ({ play: 'Memutar', pause: 'Menjeda', next: 'Lagu berikutnya', previous: 'Lagu sebelumnya' })[a.action] || 'Play/pause',
+    now_playing: () => 'Melihat yang sedang diputar',
+    play_youtube: a => `Memutar "${a.query}" di YouTube`,
+    open_website: a => `Membuka ${a.url}`,
+    press_keys: a => `Menekan ${a.keys}`,
+    type_text: () => 'Mengetik teks',
+    add_todo: a => `To-do: ${a.text}`,
+    list_todos: () => 'Melihat to-do',
+    complete_todo: a => `Menyelesaikan to-do #${a.number}`,
+    schedule_task: a => `Menjadwalkan: ${a.command} (${a.at})`,
+    list_scheduled: () => 'Melihat jadwal',
+    cancel_scheduled: a => `Membatalkan jadwal #${a.number}`,
+  };
+
+  function emptyChat() {
+    const ideas = ['Buka Spotify', 'Cari resep nasi goreng di YouTube', 'Ingatkan aku minum air jam 3 sore', 'Apa saja to-do ku?'];
+    const big = h('span'); big.innerHTML = soulSvg(true);
+    messages.replaceChildren(h('div', { class: 'empty', style: 'margin:auto' },
+      big,
+      h('div', { style: 'font-size:16px;font-weight:600;color:var(--text)' }, 'Halo! Mau aku bantu apa?'),
+      h('div', {}, 'Aku bisa buka aplikasi, cari di web, atur to-do & jadwal, atau jawab pertanyaan.'),
+      h('div', { class: 'suggest' }, ideas.map(t => h('button', { onclick: () => send(t) }, t)))));
+  }
+
+  let typing = null;
+  function addMsg(kind, text, args) {
+    messages.querySelector('.empty')?.remove();
+    typing?.remove();
+    const el = kind === 'tool'
+      ? h('div', { class: 'tool' }, '⚡ ' + (toolLabel[text]?.(args || {}) ?? text))
+      : h('div', { class: `msg ${kind}` }, text);
+    messages.append(el);
+    if (kind === 'user' || kind === 'tool') {
+      typing = h('div', { class: 'typing' }, h('i'), h('i'), h('i'));
+      messages.append(typing);
+    } else typing = null;
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  listen('chat', ({ payload: p }) => addMsg(p.kind, p.kind === 'tool' ? p.name : p.text, p.args));
+
+  function send(text) {
+    text = text.trim();
+    if (!text) return;
+    invoke('chat_send', { text });
+  }
+  $('composer').onsubmit = e => { e.preventDefault(); send($('chat-input').value); $('chat-input').value = ''; };
+  $('new-chat').onclick = () => { invoke('chat_reset'); emptyChat(); $('chat-input').focus(); };
+  emptyChat();
+
+  // ---------- controls ----------
+  const clock = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  async function refreshMedia() {
+    const m = await invoke('media_info');
+    media = m;
+    $('media-title').textContent = m.has ? m.title : 'Tidak ada yang diputar';
+    $('media-artist').textContent = m.has ? (m.artist || '') : 'Putar musik di Spotify, YouTube, dll.';
+    const art = $('art');
+    art.style.backgroundImage = m.thumb ? `url("${m.thumb}")` : '';
+    art.firstElementChild.style.display = m.thumb ? 'none' : '';
+    $('media-pos').textContent = clock(m.position);
+    $('media-dur').textContent = clock(m.duration);
+    $('progress').classList.toggle('off', !(m.can_seek && m.duration > 0));
+    $('progress-fill').style.width = m.duration > 0 ? `${Math.min(100, m.position / m.duration * 100)}%` : '0';
+    $('play-btn').innerHTML = m.playing
+      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>'
+      : '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>';
+  }
+  let media = null;
+  $('progress').onclick = async e => {
+    if (!media?.can_seek || !(media.duration > 0)) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const seconds = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * media.duration;
+    $('progress-fill').style.transition = 'none';
+    $('progress-fill').style.width = `${seconds / media.duration * 100}%`;
+    await invoke('media_seek', { seconds });
+    $('progress-fill').style.transition = '';
+    setTimeout(refreshMedia, 300);
+  };
+  document.querySelectorAll('[data-media]').forEach(b => b.onclick = async () => {
+    picking = true; // "next" on a single YouTube video briefly focuses the YouTube tab; keep the panel open
+    try { await invoke('media_action', { action: b.dataset.media }); } finally { picking = false; }
+    setTimeout(refreshMedia, 600);
+  });
+  document.querySelectorAll('[data-global]').forEach(b => b.onclick = () => { closePanel(); setTimeout(() => invoke('send_keys', { keys: b.dataset.global }), 180); });
+
+  // Wi-Fi, Bluetooth, audio, dark mode and the volume slider.
+  let ctl = {}, volDragging = false, volTimer = 0;
+  function setTog(id, on, sub) {
+    const el = $(`tog-${id}`);
+    el.classList.toggle('on', on === true);
+    el.classList.toggle('na', on == null);
+    el.querySelector('small').textContent = sub;
+  }
+  function paintVolume(v) { $('volume').style.setProperty('--p', `${v}%`); $('volume-val').textContent = `${v}%`; }
+  async function refreshControls() {
+    ctl = await invoke('get_controls');
+    setTog('wifi', ctl.wifi, ctl.wifi == null ? 'Tidak ada' : ctl.wifi ? 'Aktif' : 'Mati');
+    setTog('bt', ctl.bluetooth, ctl.bluetooth == null ? 'Tidak ada' : ctl.bluetooth ? 'Aktif' : 'Mati');
+    setTog('audio', ctl.volume == null ? null : !ctl.muted, ctl.volume == null ? 'Tidak ada' : ctl.muted ? 'Bisu' : 'Speaker');
+    setTog('dark', ctl.dark, ctl.dark ? 'Aktif' : 'Mati');
+    if (!volDragging && ctl.volume != null) { $('volume').value = ctl.volume; paintVolume(ctl.volume); }
+  }
+  async function flip(id, action) {
+    const el = $(`tog-${id}`);
+    el.classList.toggle('on'); // feels instant; the real state is re-read right after
+    const ok = await action();
+    if (ok === false) toast('Windows menolak perubahan ini');
+    refreshControls();
+  }
+  $('tog-wifi').onclick = () => flip('wifi', () => invoke('set_radio', { which: 'wifi', on: !ctl.wifi }));
+  $('tog-bt').onclick = () => flip('bt', () => invoke('set_radio', { which: 'bluetooth', on: !ctl.bluetooth }));
+  $('tog-audio').onclick = () => flip('audio', () => invoke('set_muted', { muted: !ctl.muted }));
+  $('tog-dark').onclick = () => flip('dark', () => invoke('set_dark_mode', { dark: !ctl.dark }));
+  $('volume').addEventListener('input', e => {
+    volDragging = true;
+    const v = +e.target.value;
+    paintVolume(v);
+    clearTimeout(volTimer);
+    volTimer = setTimeout(() => invoke('set_volume', { percent: v }), 40);
+  });
+  $('volume').addEventListener('change', e => { invoke('set_volume', { percent: +e.target.value }); volDragging = false; });
+
+  // Mini player in the collapsed notch.
+  async function refreshMini() {
+    if (mode !== 'idle') return;
+    const m = await invoke('media_info');
+    const on = !!(m.has && m.playing);
+    if (on) {
+      $('mini-title').textContent = m.artist ? `${m.title} · ${m.artist}` : m.title;
+      $('mini-art').style.backgroundImage = m.thumb ? `url("${m.thumb}")` : '';
+    }
+    if (on !== island.classList.contains('music')) { island.classList.toggle('music', on); reportSoon(); }
+  }
+  setInterval(refreshMini, 4000);
+  setTimeout(refreshMini, 1500);
+
+  // ---------- today ----------
+  const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const pad = n => String(n).padStart(2, '0');
+  function tickClock() {
+    const d = new Date();
+    $('clock-h').textContent = pad(d.getHours());
+    $('clock-m').textContent = pad(d.getMinutes());
+    $('clock-date').textContent = `${days[d.getDay()].slice(0, 3)}, ${d.getDate()} ${months[d.getMonth()].slice(0, 3)}`;
+  }
+  function renderWeek() {
+    const d = new Date();
+    const monday = new Date(d); monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const names = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+    const cells = names.map((n, i) => {
+      const day = new Date(monday); day.setDate(monday.getDate() + i);
+      return h('div', { class: day.toDateString() === d.toDateString() ? 'today' : '' }, n, h('b', {}, String(day.getDate())));
+    });
+    $('week').replaceChildren(...cells);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+    $('week-range').textContent = `${monday.getDate()} ${months[monday.getMonth()].slice(0, 3)} – ${sunday.getDate()} ${months[sunday.getMonth()].slice(0, 3)}`;
+  }
+  const repeatLabel = { once: 'Sekali', daily: 'Tiap hari', weekdays: 'Hari kerja' };
+  function renderTodos(list) {
+    $('todo-count').textContent = list.length ? `${list.length} tersisa` : '';
+    $('todo-list').replaceChildren(...(list.length ? list.map((t, i) => h('li', { class: 'row' },
+      h('button', { class: 'check', title: 'Selesai', onclick: async () => renderTodos(await invoke('complete_todo', { index: i })) }),
+      h('div', { class: 'grow' }, t.text, t.due ? h('small', {}, t.due) : null)))
+      : [h('div', { class: 'empty', style: 'padding:16px 0' }, 'Belum ada to-do.')]));
+  }
+  function renderNext(tasks) {
+    const next = [...tasks].sort((a, b) => a.next.localeCompare(b.next))[0];
+    $('next-task').replaceChildren(...(next
+      ? [h('small', {}, `Berikutnya · ${next.next.slice(11)} · ${repeatLabel[next.repeat] || next.repeat}`), next.command]
+      : [h('small', {}, 'Berikutnya'), 'Belum ada jadwal. Coba: "tiap pagi jam 9 buka Spotify"']));
+  }
+  async function refreshToday() {
+    renderWeek();
+    renderTodos(await invoke('get_todos'));
+    renderNext(await invoke('get_tasks'));
+  }
+  $('todo-form').onsubmit = async e => {
+    e.preventDefault();
+    const text = $('todo-text').value.trim(); if (!text) return;
+    $('todo-text').value = '';
+    renderTodos(await invoke('add_todo', { text }));
+  };
+  listen('tasks-changed', () => { if (mode === 'open' && currentTab === 'today') refreshToday(); });
+
+  // Pomodoro: keeps running when the panel closes, and Shiki announces the end in the notch.
+  const pomo = { total: 25 * 60, left: 25 * 60, timer: 0 };
+  function paintPomo() {
+    $('pomo-time').textContent = `${pad(Math.floor(pomo.left / 60))}:${pad(pomo.left % 60)}`;
+    $('pomo-ring').style.setProperty('--v', pomo.left / pomo.total * 100);
+    $('pomo-start').textContent = pomo.timer ? 'Jeda' : pomo.left < pomo.total ? 'Lanjut' : 'Mulai';
+  }
+  function chime() {
+    try {
+      const ctx = new AudioContext();
+      [0, 0.18, 0.36].forEach((t, i) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.frequency.value = [880, 1175, 1568][i];
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+        g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.5);
+        o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.55);
+      });
+    } catch {}
+  }
+  $('pomo-start').onclick = () => {
+    if (pomo.timer) { clearInterval(pomo.timer); pomo.timer = 0; return paintPomo(); }
+    if (pomo.left <= 0) pomo.left = pomo.total;
+    pomo.timer = setInterval(() => {
+      pomo.left--;
+      if (pomo.left <= 0) {
+        clearInterval(pomo.timer); pomo.timer = 0; pomo.left = 0;
+        chime();
+        showActivity('done', 'Waktu fokus selesai. Istirahat dulu sebentar ✨');
+      }
+      paintPomo();
+    }, 1000);
+    paintPomo();
+  };
+  $('pomo-reset').onclick = () => { clearInterval(pomo.timer); pomo.timer = 0; pomo.left = pomo.total; paintPomo(); };
+  document.querySelectorAll('#pomo-chips button').forEach(b => b.onclick = () => {
+    clearInterval(pomo.timer); pomo.timer = 0;
+    pomo.total = pomo.left = +b.dataset.min * 60;
+    document.querySelectorAll('#pomo-chips button').forEach(x => x.classList.toggle('on', x === b));
+    paintPomo();
+  });
+  paintPomo();
+
+  // ---------- stats ----------
+  function setRing(id, v) { $(id).style.setProperty('--v', Math.round(v)); }
+  async function refreshStats() {
+    const s = await invoke('get_stats');
+    setRing('cpu-ring', s.cpu); $('cpu-val').textContent = `${Math.round(s.cpu)}%`;
+    const ram = s.ram_used_gb / s.ram_total_gb * 100;
+    setRing('ram-ring', ram); $('ram-val').textContent = `${Math.round(ram)}%`;
+    $('ram-detail').textContent = `${s.ram_used_gb.toFixed(1)} / ${s.ram_total_gb.toFixed(0)} GB`;
+    if (s.battery != null) {
+      setRing('bat-ring', s.battery); $('bat-val').textContent = `${s.battery}%`;
+      $('bat-label').textContent = s.charging ? 'Baterai · mengisi ⚡' : 'Baterai';
+    } else { $('bat-val').textContent = '–'; $('bat-label').textContent = 'Tanpa baterai'; }
+  }
+
+  // ---------- clipboard ----------
+  let clips = [], clipSel = null, clipFilter = 'all';
+  const isLink = t => /^(https?:\/\/|www\.)\S+$/i.test(t.trim());
+  function pasteClip(text) { closePanel(); invoke('clipboard_paste', { text }); }
+  function renderClipPreview() {
+    const box = $('clip-preview');
+    if (clipSel == null) return box.replaceChildren(h('div', { class: 'empty', style: 'margin:auto' }, 'Pilih item untuk melihat isinya.'));
+    const words = clipSel.trim().split(/\s+/).filter(Boolean).length;
+    box.replaceChildren(
+      h('pre', {}, clipSel),
+      h('div', { class: 'clip-meta' }, 'Tipe', h('b', {}, isLink(clipSel) ? 'Link' : 'Teks'), 'Ukuran', h('b', {}, `${clipSel.length} karakter · ${words} kata`)),
+      h('div', { class: 'clip-actions' },
+        h('button', { class: 'btn primary', onclick: () => pasteClip(clipSel) }, 'Paste'),
+        isLink(clipSel) ? h('button', { class: 'btn', onclick: () => { invoke('open_url', { url: clipSel.startsWith('www.') ? `https://${clipSel}` : clipSel }); closePanel(); } }, 'Buka') : null));
+  }
+  function renderClips() {
+    const q = $('clip-search').value.trim().toLowerCase();
+    const list = clips.filter(c => (clipFilter === 'all' || (clipFilter === 'link') === isLink(c)) && c.toLowerCase().includes(q));
+    if (!list.includes(clipSel)) clipSel = list[0] ?? null;
+    $('clips').replaceChildren(...(list.length ? list.map(c => {
+      const el = h('button', { class: `clip${c === clipSel ? ' sel' : ''}`, title: 'Klik untuk lihat, klik dua kali untuk paste' },
+        h('span', { class: 'kind' }, isLink(c) ? '🔗' : 'T'), h('span', {}, c.replace(/\s+/g, ' ')));
+      el.onclick = () => { clipSel = c; renderClips(); };
+      el.ondblclick = () => pasteClip(c);
+      return el;
+    }) : [h('div', { class: 'empty' }, clips.length ? 'Tidak ketemu.' : 'Belum ada yang di-copy sejak Shiki berjalan.')]));
+    renderClipPreview();
+  }
+  async function refreshClips() { clips = await invoke('clipboard_list'); renderClips(); }
+  $('clip-search').oninput = renderClips;
+  $('clip-search').onkeydown = e => { if (e.key === 'Enter' && clipSel) pasteClip(clipSel); };
+  document.querySelectorAll('#clip-filter button').forEach(b => b.onclick = () => {
+    clipFilter = b.dataset.f;
+    document.querySelectorAll('#clip-filter button').forEach(x => x.classList.toggle('on', x === b));
+    renderClips();
+  });
+  $('clip-clear').onclick = async () => { await invoke('clipboard_clear'); refreshClips(); };
+
+  // ---------- apps ----------
+  let appNames = null, favs = [], usage = {};
+  const appIcons = new Map(), iconAsked = new Set();
+  function hue(s) { let x = 0; for (const c of s) x = (x * 31 + c.codePointAt(0)) % 360; return x; }
+  function appBadge(n) {
+    return appIcons.has(n)
+      ? h('img', { class: 'icon', src: appIcons.get(n), alt: '' })
+      : h('div', { class: 'mono', style: `background:hsl(${hue(n)} 70% 72%)` }, [...n][0].toUpperCase());
+  }
+  function appRow(n, first) {
+    const star = h('button', { class: `star${favs.includes(n) ? ' on' : ''}`, title: favs.includes(n) ? 'Hapus dari favorit' : 'Jadikan favorit' }, '★');
+    star.onclick = async e => { e.stopPropagation(); favs = await invoke('toggle_favorite', { name: n }); renderApps(); };
+    return h('button', { class: `arow${first ? ' first' : ''}`, title: n, onclick: () => { closePanel(); invoke('launch_app', { name: n }); } },
+      appBadge(n), h('span', { class: 'name' }, n), h('span', { class: 'type' }, usage[n] ? `${usage[n]}× dibuka` : 'Aplikasi'), star);
+  }
+  function renderApps() {
+    if (appNames == null) return $('apps').replaceChildren(h('div', { class: 'empty' }, 'Memuat aplikasi…'));
+    const q = $('app-search').value.trim().toLowerCase();
+    let sections;
+    if (q) {
+      sections = [['Hasil', appNames.filter(n => n.toLowerCase().includes(q)).slice(0, 50)]];
+    } else {
+      const fav = favs.filter(n => appNames.includes(n));
+      const recent = appNames.filter(n => usage[n] && !fav.includes(n)).slice(0, 5);
+      const rest = appNames.filter(n => !fav.includes(n) && !recent.includes(n)).sort((a, b) => a.localeCompare(b)).slice(0, 80);
+      sections = [['Favorit', fav], ['Terbaru', recent], ['Aplikasi', rest]];
+    }
+    const shown = [];
+    const nodes = [];
+    for (const [title, names] of sections) {
+      if (!names.length) continue;
+      nodes.push(h('div', { class: 'sect' }, title));
+      for (const n of names) { nodes.push(appRow(n, q && !shown.length)); shown.push(n); }
+    }
+    $('apps').replaceChildren(...(nodes.length ? nodes : [h('div', { class: 'empty' }, 'Tidak ketemu.')]));
+    // Real icons come from the Windows shell; fetch the ones on screen we haven't asked for yet.
+    const missing = shown.filter(n => !iconAsked.has(n));
+    if (missing.length) {
+      missing.forEach(n => iconAsked.add(n));
+      invoke('app_icons', { names: missing }).then(icons => {
+        for (const [name, url] of Object.entries(icons)) appIcons.set(name, url);
+        if (currentTab === 'apps') renderApps();
+      });
+    }
+  }
+  async function loadApps() {
+    renderApps();
+    setTimeout(() => $('app-search').focus(), 50);
+    [appNames, favs, usage] = await Promise.all([invoke('app_list'), invoke('favorite_apps'), invoke('app_usage')]);
+    renderApps();
+  }
+  $('app-search').oninput = renderApps;
+  $('app-search').onkeydown = e => { if (e.key === 'Enter') $('apps').querySelector('.arow')?.click(); };
+
+  // ---------- wallpaper ----------
+  let wallSource = 'recent', walls = [], wallIndex = 0, wallsFor = null, lastWheel = 0, picking = false;
+
+  async function loadWalls(force) {
+    if (!force && wallsFor === wallSource) return layoutWalls();
+    const empty = text => h('div', { class: 'empty', style: 'position:absolute;inset:0' }, text);
+    $('walls').replaceChildren(empty('Menyiapkan thumbnail…'));
+    $('wall-name').textContent = $('wall-hint').textContent = '';
+    const source = wallSource;
+    const [folder, list] = await invoke('wallpapers', { source });
+    if (source !== wallSource) return; // switched tabs meanwhile
+    walls = list; wallsFor = source;
+    wallIndex = Math.max(0, walls.findIndex(w => w.current));
+    $('wall-count').textContent = `${walls.length} gambar` + (source === 'folder' ? ` · ${folder.split(/[\\/]/).pop()}` : '');
+    $('wall-count').title = source === 'folder' ? folder : '';
+    if (!walls.length) {
+      $('walls').replaceChildren(empty(source === 'folder' ? 'Tidak ada gambar di folder ini. Pilih folder lain lewat ikon folder.' : 'Belum ada wallpaper.'));
+      return layoutWalls();
+    }
+    const strip = h('div', { class: 'strip', id: 'strip' }, ...walls.map((w, i) => {
+      const el = h('div', { class: `wcard${w.current ? ' current' : ''}`, title: w.path }, h('i', { style: `background-image:url("${w.thumb}")` }));
+      el.onclick = () => (i === wallIndex ? applyWall(i) : (wallIndex = i, layoutWalls()));
+      return el;
+    }));
+    $('walls').replaceChildren(strip);
+    layoutWalls();
+  }
+
+  // Slanted strip: the selected card opens wide, its neighbours a little, the rest stay slivers.
+  // The strip slides so the selected card sits in the middle (widths are known, so no measuring mid-animation).
+  const W_ACTIVE = 232, W_NEAR = 62, W_FAR = 34, GAP = 10;
+  function layoutWalls() {
+    const cards = [...$('walls').querySelectorAll('.wcard')];
+    let x = 0, centre = 0;
+    cards.forEach((el, i) => {
+      const a = Math.abs(i - wallIndex);
+      el.classList.toggle('active', a === 0);
+      el.classList.toggle('near', a === 1);
+      const w = a === 0 ? W_ACTIVE : a === 1 ? W_NEAR : W_FAR;
+      if (a === 0) centre = x + w / 2;
+      x += w + GAP;
+    });
+    const strip = $('strip');
+    if (strip) strip.style.transform = `translateX(${$('walls').clientWidth / 2 - centre}px)`;
+    const w = walls[wallIndex];
+    $('wall-name').textContent = w ? w.name : '';
+    $('wall-hint').textContent = !w ? '' : w.current ? 'Terpasang' : 'Klik untuk memasang · scroll untuk geser';
+  }
+
+  function moveWall(dir) {
+    wallIndex = Math.min(walls.length - 1, Math.max(0, wallIndex + dir));
+    layoutWalls();
+  }
+
+  async function applyWall(i) {
+    const el = $('walls').querySelectorAll('.wcard')[i], w = walls[i];
+    el.classList.remove('apply'); void el.offsetWidth; el.classList.add('apply');
+    $('wall-hint').textContent = 'Memasang…';
+    if (await invoke('set_wallpaper', { path: w.path })) {
+      walls.forEach(x => (x.current = x === w));
+      $('walls').querySelectorAll('.wcard').forEach((x, j) => x.classList.toggle('current', j === i));
+      layoutWalls();
+      toast('Wallpaper diganti');
+      if (wallSource === 'recent') wallsFor = null; // the recent list's order changed
+    } else toast('Gagal mengganti wallpaper');
+  }
+
+  $('walls').addEventListener('wheel', e => {
+    e.preventDefault();
+    const now = performance.now();
+    if (now - lastWheel < 140) return;
+    lastWheel = now;
+    moveWall((Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) > 0 ? 1 : -1);
+  }, { passive: false });
+  addEventListener('keydown', e => {
+    if (mode !== 'open' || currentTab !== 'wallpaper' || !walls.length) return;
+    if (e.key === 'ArrowRight') moveWall(1);
+    else if (e.key === 'ArrowLeft') moveWall(-1);
+    else if (e.key === 'Enter') applyWall(wallIndex);
+  });
+  function setWallSource(src) {
+    wallSource = src;
+    document.querySelectorAll('#wall-seg button').forEach(b => b.classList.toggle('on', b.dataset.src === src));
+  }
+  document.querySelectorAll('#wall-seg button').forEach(b => b.onclick = () => { setWallSource(b.dataset.src); loadWalls(); });
+  $('wall-folder').onclick = async () => {
+    picking = true; // the folder dialog takes focus; don't let that close the panel
+    try {
+      if (await invoke('pick_wallpaper_folder')) { setWallSource('folder'); loadWalls(true); }
+    } finally { picking = false; }
+  };
+
+  // ---------- power ----------
+  document.querySelectorAll('[data-power]').forEach(b => {
+    const label = b.lastChild.textContent;
+    b.onclick = () => {
+      if (b.hasAttribute('data-confirm') && !b.classList.contains('confirm')) {
+        b.classList.add('confirm'); b.lastChild.textContent = 'Klik lagi';
+        setTimeout(() => { b.classList.remove('confirm'); b.lastChild.textContent = label; }, 3000);
+        return;
+      }
+      closePanel();
+      invoke('power', { action: b.dataset.power });
+    };
+  });
+
+  setMode('idle');
+</script>
+</body>
+</html>

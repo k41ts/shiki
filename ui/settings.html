@@ -1,0 +1,420 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Shiki</title>
+<style>
+  :root {
+    --bg: #141312; --card: #1d1b1a; --card-2: #262422; --text: #f2efe9; --muted: #9a948b; --line: rgba(255, 255, 255, 0.07);
+    --accent: #e2b65a; --accent-ink: #1c1405; --danger: #ff6b6b;
+    --soul: #ffb43a; --eye: #d9a33a;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1); --spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: radial-gradient(120% 80% at 50% 0%, #1f1c19 0%, var(--bg) 60%); color: var(--text); overflow: hidden;
+    font: 13.5px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; user-select: none; }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
+  input { font: inherit; color: inherit; }
+
+  header { display: flex; align-items: center; gap: 10px; padding: 18px 22px 0; }
+  header .soul { width: 22px; height: 22px; }
+  header b { font: 600 15px "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+  header span { color: var(--muted); font-size: 12px; }
+
+  main { position: absolute; inset: 56px 0 84px; }
+  .page { position: absolute; inset: 0; padding: 4px 22px; display: none; flex-direction: column; }
+  .page.on { display: flex; animation: page-in 260ms var(--ease-out) both; }
+  @keyframes page-in { from { opacity: 0; transform: translateY(6px); } }
+  h1 { margin: 0; font: 600 20px "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+  .sub { color: var(--muted); margin: 2px 0 0; font-size: 12.5px; }
+
+  /* ---------- dock ---------- */
+  .dock { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; gap: 4px; padding: 5px;
+    background: rgba(32, 30, 28, 0.92); border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
+  .dock button { display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 12px; border-radius: 999px; color: var(--muted);
+    transition: background 200ms, color 200ms; }
+  .dock button span { display: none; font-weight: 600; font-size: 12.5px; }
+  .dock button:hover { color: var(--text); }
+  .dock button.on { background: var(--card-2); color: var(--text); }
+  .dock button.on span { display: inline; }
+  .dock .soul { width: 18px; height: 18px; }
+
+  /* ---------- loadout ---------- */
+  .stage { position: relative; flex: 1; margin-top: 4px; overflow: hidden; border-radius: 16px; }
+  .stage svg.links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .stage svg.links path { fill: none; stroke: rgba(242, 239, 233, 0.22); stroke-width: 1.4; }
+  .core { position: absolute; left: 50%; top: 50%; width: 156px; height: 156px; translate: -50% -50%; border-radius: 50%; display: grid; place-items: center;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.05), transparent 70%), #1a1918;
+    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0.03), 0 0 0 1px rgba(255, 255, 255, 0.08) inset, 0 0 60px color-mix(in srgb, var(--soul) 22%, transparent); }
+  .core::before { content: ""; position: absolute; inset: -18px; border-radius: 50%; border: 1px dashed rgba(255, 255, 255, 0.07); animation: spin 40s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .core .soul { width: 96px; height: 96px; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--soul) 60%, transparent)); }
+  .node { position: absolute; translate: -50% -50%; display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 10px; min-width: 132px;
+    background: rgba(30, 28, 27, 0.95); border: 1px solid var(--line); border-radius: 12px; text-align: left; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    transition: border-color 200ms, background 200ms; animation: float var(--d, 6s) ease-in-out infinite; }
+  .node:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: #24211f; }
+  .node .ic { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.05); flex: none; }
+  .node b { display: block; font-size: 13px; white-space: nowrap; }
+  .node small { display: block; font-size: 11px; color: var(--muted); }
+  @keyframes float { 0%, 100% { transform: translate(0, 0); } 33% { transform: translate(3px, -5px); } 66% { transform: translate(-3px, 3px); } }
+
+  /* picker sheet */
+  .scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); opacity: 0; pointer-events: none; transition: opacity 220ms; border-radius: 16px; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; background: #1c1a19;
+    border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
+    transform: translateY(105%); transition: transform 380ms var(--ease-out); }
+  .open .scrim { opacity: 1; pointer-events: auto; }
+  .open .sheet { transform: none; }
+  .sheet-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+  .sheet-head b { flex: 1; font-size: 15px; }
+  .sheet-body { overflow-y: auto; padding: 0 12px 14px; scrollbar-width: thin; scrollbar-color: #3a3734 transparent; }
+  .icon-btn { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); transition: background 160ms, color 160ms; }
+  .icon-btn:hover { background: rgba(255, 255, 255, 0.07); color: var(--text); }
+
+  .masks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .mask-card { display: grid; justify-items: center; gap: 6px; padding: 14px 10px; border-radius: 14px; background: var(--card-2); border: 2px solid transparent; text-align: center; transition: border-color 180ms, background 180ms; }
+  .mask-card:hover { background: #2d2a27; }
+  .mask-card.on { border-color: var(--accent); }
+  .mask-card .soul { width: 64px; height: 64px; }
+  .mask-card small { color: var(--muted); font-size: 11.5px; line-height: 1.35; }
+
+  .opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 12px; text-align: left; border: 2px solid transparent; transition: background 160ms, border-color 160ms; }
+  .opt:hover { background: var(--card-2); }
+  .opt.on { border-color: var(--accent); background: var(--card-2); }
+  .opt .grow { flex: 1; min-width: 0; }
+  .opt b { display: block; } .opt small { display: block; color: var(--muted); font-size: 12px; }
+  .opt .play { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, 0.07); flex: none; transition: background 160ms; }
+  .opt .play:hover { background: var(--accent); color: var(--accent-ink); }
+  .opt .play.busy { animation: pulse 0.8s ease-in-out infinite alternate; }
+  @keyframes pulse { to { opacity: 0.4; } }
+  .switch { width: 38px; height: 22px; border-radius: 11px; background: #3a3734; position: relative; flex: none; transition: background 200ms; }
+  .switch::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 220ms var(--spring); }
+  .on > .switch, .switch.on { background: var(--accent); }
+  .on > .switch::after, .switch.on::after { transform: translateX(16px); }
+  .divider { height: 1px; background: var(--line); margin: 8px 4px; }
+
+  /* ---------- jadwal & pengaturan ---------- */
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex: 1; min-height: 0; margin-top: 14px; }
+  .cols .card { display: flex; flex-direction: column; min-height: 0; }
+  .label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 8px; display: block; }
+  .help { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+  .field { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: #121110; outline: none; transition: border-color 150ms; }
+  .field:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+  .row { display: flex; gap: 8px; }
+  .row .field { flex: 1; }
+  .btn { padding: 9px 14px; border-radius: 10px; background: var(--card-2); font-weight: 600; font-size: 13px; transition: background 150ms, transform 120ms; }
+  .btn:hover { background: #312e2b; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .btn:active, .opt:active, .mask-card:active, .node:active { transform: scale(0.98); }
+  a { color: var(--accent); cursor: pointer; text-decoration: none; } a:hover { text-decoration: underline; }
+  kbd { padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line); background: #121110; font: 600 11.5px inherit; font-family: inherit; }
+  .scroll { overflow-y: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: #3a3734 transparent; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: flex; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid var(--line); }
+  li:last-child { border-bottom: 0; }
+  li .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  li small { color: var(--muted); display: block; font-size: 11.5px; }
+  .check { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--muted); flex: none; transition: border-color 150ms, background 150ms; }
+  .check:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  .x { color: var(--muted); font-size: 15px; padding: 2px 6px; border-radius: 6px; } .x:hover { color: var(--danger); }
+  .empty { color: var(--muted); text-align: center; padding: 16px 0; }
+  .settings { display: grid; gap: 12px; margin-top: 14px; overflow-y: auto; padding-bottom: 8px; }
+  .keys { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .toast { position: fixed; left: 50%; bottom: 76px; transform: translate(-50%, 12px); opacity: 0; padding: 7px 15px; border-radius: 999px;
+    background: var(--text); color: var(--bg); font-weight: 600; font-size: 12.5px; pointer-events: none; transition: opacity 180ms, transform 260ms var(--spring); }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { .node, .core::before { animation: none; } }
+</style>
+</head>
+<body>
+  <header><span class="soul-slot"></span><b>Shiki</b><span>· asisten suara untuk Windows</span></header>
+
+  <main>
+    <!-- LOADOUT -->
+    <section class="page on" id="page-loadout">
+      <h1>Loadout</h1>
+      <p class="sub">Empat slot yang membentuk Shiki. Klik salah satu untuk menggantinya.</p>
+      <div class="stage" id="stage">
+        <svg class="links" id="links"><path/><path/><path/><path/></svg>
+        <div class="core" id="core"></div>
+        <button class="node" data-slot="soul" style="left:24%;top:20%;--d:6.5s"><span class="ic">✦</span><span><b id="v-soul"></b><small>Soul</small></span></button>
+        <button class="node" data-slot="personality" style="left:77%;top:30%;--d:7.2s"><span class="ic">☺</span><span><b id="v-personality"></b><small>Personality</small></span></button>
+        <button class="node" data-slot="voice" style="left:70%;top:80%;--d:5.8s"><span class="ic">♪</span><span><b id="v-voice"></b><small>Voice</small></span></button>
+        <button class="node" data-slot="abilities" style="left:22%;top:70%;--d:6.9s"><span class="ic">⚡</span><span><b id="v-abilities"></b><small>Abilities</small></span></button>
+        <div class="scrim" id="scrim"></div>
+        <div class="sheet" id="sheet">
+          <div class="sheet-head"><b id="sheet-title"></b><button class="icon-btn" id="sheet-close" title="Tutup">✕</button></div>
+          <div class="sheet-body" id="sheet-body"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- JADWAL -->
+    <section class="page" id="page-plans">
+      <h1>Jadwal</h1>
+      <p class="sub">To-do dan rutinitas. Bisa juga lewat suara: "tiap pagi jam 9 buka Spotify".</p>
+      <div class="cols">
+        <div class="card">
+          <span class="label">To-do</span>
+          <form class="row" id="todo-form" style="margin-bottom:6px">
+            <input class="field" id="todo-text" placeholder="Tambah to-do…" autocomplete="off">
+            <button class="btn primary">Tambah</button>
+          </form>
+          <ul id="todo-list" class="scroll" style="flex:1"></ul>
+        </div>
+        <div class="card">
+          <span class="label">Jadwal & rutinitas</span>
+          <ul id="task-list" class="scroll" style="flex:1"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- PENGATURAN -->
+    <section class="page" id="page-settings">
+      <h1>Pengaturan</h1>
+      <div class="settings">
+        <div class="card">
+          <label class="label" for="key">Gemini API key</label>
+          <div class="row">
+            <input class="field" id="key" type="password" placeholder="AIza…" autocomplete="off" spellcheck="false">
+            <button class="btn" id="reveal">Lihat</button>
+          </div>
+          <p class="help">Gratis, tanpa kartu. <a data-url="https://aistudio.google.com/apikey">Bikin di Google AI Studio →</a></p>
+        </div>
+        <div class="card">
+          <label class="label" for="model">Model</label>
+          <input class="field" id="model" list="models" spellcheck="false">
+          <datalist id="models"><option value="gemini-3.5-flash-lite"><option value="gemini-3.5-flash"><option value="gemini-flash-lite-latest"></datalist>
+          <p class="help">Flash-Lite paling cepat (~1 detik). Flash sedikit lebih pintar tapi lebih lambat.</p>
+        </div>
+        <div class="card">
+          <span class="label">Shortcut (tahan)</span>
+          <div class="keys">
+            <div><small class="help" style="display:block;margin:0 0 4px">Dikte</small><input class="field" id="dict" spellcheck="false"></div>
+            <div><small class="help" style="display:block;margin:0 0 4px">Perintah + lingkari</small><input class="field" id="cmd" spellcheck="false"></div>
+          </div>
+          <p class="help">Pisahkan dengan +, contoh <kbd>ctrl+win</kbd> atau <kbd>ctrl+alt</kbd>.</p>
+        </div>
+        <button class="btn primary" id="save">Simpan</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="dock" id="dock">
+    <button data-page="loadout" class="on" title="Loadout"><span class="soul-slot"></span><span>Soul</span></button>
+    <button data-page="plans" title="Jadwal"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Jadwal</span></button>
+    <button data-page="settings" title="Pengaturan"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Pengaturan</span></button>
+  </nav>
+  <div class="toast" id="toast"></div>
+
+<script src="masks.js"></script>
+<script>
+  const { invoke } = window.__TAURI__.core;
+  const { listen } = window.__TAURI__.event;
+  const $ = id => document.getElementById(id);
+
+  function h(tag, props = {}, ...children) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+      if (k === 'class') el.className = v;
+      else if (k === 'html') el.innerHTML = v;
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v);
+    }
+    for (const c of children.flat()) if (c != null) el.append(c);
+    return el;
+  }
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  // ---------- dock ----------
+  document.querySelectorAll('#dock button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('#dock button').forEach(x => x.classList.toggle('on', x === b));
+    document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === `page-${b.dataset.page}`));
+    if (b.dataset.page === 'plans') refreshPlans();
+  });
+  document.querySelectorAll('a[data-url]').forEach(a => a.onclick = () => invoke('open_url', { url: a.dataset.url }));
+
+  // ---------- loadout data ----------
+  const PERSONALITIES = [
+    ['tenang', 'Tenang', 'Halo, aku Shiki. Ada yang bisa aku bantu?'],
+    ['santai', 'Santai', 'Yo! Mau dibukain apa nih? Gas.'],
+    ['sarkas', 'Sarkas', 'Oh, butuh bantuan lagi? Tentu saja.'],
+    ['formal', 'Formal', 'Baik, permintaan Anda sudah saya proses.'],
+    ['samurai', 'Samurai', 'Hamba siap melayani, Tuan.'],
+    ['iblis', 'Iblis kontrak', 'Perjanjian telah dibuat. Spotify kubuka.'],
+  ];
+  const VOICES = [
+    ['Charon', 'Berat, informatif'], ['Fenrir', 'Bersemangat'], ['Puck', 'Ceria'], ['Kore', 'Tegas'], ['Orus', 'Dalam, tegas'],
+    ['Algenib', 'Serak'], ['Gacrux', 'Dewasa'], ['Zephyr', 'Cerah'], ['Aoede', 'Santai, ringan'], ['Leda', 'Muda'],
+    ['Achernar', 'Lembut'], ['Sadaltager', 'Berwibawa'],
+  ];
+  const ABILITIES = [
+    ['apps', 'Buka aplikasi', 'Spotify, VS Code, Steam, …'],
+    ['web', 'Browser & YouTube', 'Cari di web, buka situs, setel video'],
+    ['media', 'Kontrol musik & video', 'Pause, next, lompat ke menit tertentu'],
+    ['keyboard', 'Mengetik & shortcut', 'Ketik teks dan tekan tombol di aplikasi'],
+    ['planner', 'To-do & jadwal', 'Pengingat dan rutinitas otomatis'],
+  ];
+
+  let cfg = null;
+  const save = async patch => {
+    cfg = { ...cfg, ...patch };
+    await invoke('save_config', { cfg });
+    renderNodes();
+  };
+
+  function renderCore() {
+    $('core').innerHTML = maskSvg(cfg.mask, true);
+    document.querySelectorAll('.soul-slot, header .soul, .dock .soul').forEach(el => { el.outerHTML = maskSvg(cfg.mask, false); });
+    applyMaskColours(cfg.mask);
+  }
+  function renderNodes() {
+    $('v-soul').textContent = (SHIKI_MASKS[cfg.mask] || SHIKI_MASKS.hannya).name;
+    $('v-personality').textContent = (PERSONALITIES.find(p => p[0] === cfg.personality) || PERSONALITIES[0])[1];
+    $('v-voice').textContent = cfg.voice || 'Mati';
+    $('v-abilities').textContent = `${cfg.abilities.length}/${ABILITIES.length} aktif`;
+  }
+
+  // Curved links from the core to each floating node, redrawn every frame while visible.
+  function drawLinks() {
+    if (!document.hidden && $('page-loadout').classList.contains('on')) {
+      const stage = $('stage').getBoundingClientRect();
+      const core = $('core').getBoundingClientRect();
+      const cx = core.left + core.width / 2 - stage.left, cy = core.top + core.height / 2 - stage.top, r = core.width / 2 + 2;
+      const paths = $('links').querySelectorAll('path');
+      document.querySelectorAll('.node').forEach((n, i) => {
+        const b = n.getBoundingClientRect();
+        const nx = b.left + b.width / 2 - stage.left, ny = b.top + b.height / 2 - stage.top;
+        const a = Math.atan2(ny - cy, nx - cx);
+        const sx = cx + Math.cos(a) * r, sy = cy + Math.sin(a) * r;
+        const ex = nx - Math.sign(nx - cx) * (b.width / 2), ey = ny;
+        const mx = (sx + ex) / 2;
+        paths[i].setAttribute('d', `M${sx},${sy} C${mx},${sy} ${mx},${ey} ${ex},${ey}`);
+      });
+    }
+    requestAnimationFrame(drawLinks);
+  }
+
+  // The masks watch the mouse while it's over this window.
+  addEventListener('mousemove', e => lookAt(e.clientX, e.clientY));
+
+  // ---------- picker sheet ----------
+  function openSheet(title, body) {
+    $('sheet-title').textContent = title;
+    $('sheet-body').replaceChildren(...body);
+    $('stage').classList.add('open');
+  }
+  function closeSheet() { $('stage').classList.remove('open'); }
+  $('scrim').onclick = closeSheet;
+  $('sheet-close').onclick = closeSheet;
+  addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+
+  const pickers = {
+    soul() {
+      const grid = h('div', { class: 'masks' }, ...Object.entries(SHIKI_MASKS).map(([id, m]) =>
+        h('button', { class: `mask-card${cfg.mask === id ? ' on' : ''}`, onclick: async () => { await save({ mask: id }); renderCore(); pickers.soul(); } },
+          h('span', { html: maskSvg(id, true) }), h('b', {}, m.name), h('small', {}, m.desc))));
+      openSheet('Soul · pilih topeng', [grid]);
+    },
+    personality() {
+      openSheet('Personality · gaya bicara', PERSONALITIES.map(([id, name, sample]) =>
+        h('button', { class: `opt${cfg.personality === id ? ' on' : ''}`, onclick: async () => { await save({ personality: id }); pickers.personality(); } },
+          h('span', { class: 'grow' }, h('b', {}, name), h('small', {}, `“${sample}”`)))));
+    },
+    voice() {
+      let audio = null;
+      const play = async (btn, voice) => {
+        audio?.pause();
+        btn.classList.add('busy');
+        try { audio = new Audio(await invoke('preview_voice', { voice })); await audio.play(); }
+        catch (e) { toast(String(e)); }
+        finally { btn.classList.remove('busy'); }
+      };
+      const rows = VOICES.map(([name, style]) => {
+        const btn = h('span', { class: 'play', title: 'Dengar contoh' }, '▶');
+        btn.onclick = e => { e.stopPropagation(); play(btn, name); };
+        return h('button', { class: `opt${cfg.voice === name ? ' on' : ''}`, onclick: async () => { await save({ voice: name }); pickers.voice(); } },
+          btn, h('span', { class: 'grow' }, h('b', {}, name), h('small', {}, style)));
+      });
+      openSheet('Voice · suara balasan', [
+        h('button', { class: `opt${!cfg.voice ? ' on' : ''}`, onclick: async () => { await save({ voice: '' }); pickers.voice(); } },
+          h('span', { class: 'grow' }, h('b', {}, 'Mati'), h('small', {}, 'Shiki cuma membalas dengan teks'))),
+        h('button', { class: `opt${cfg.speak_chat ? ' on' : ''}`, onclick: async () => { await save({ speak_chat: !cfg.speak_chat }); pickers.voice(); } },
+          h('span', { class: 'grow' }, h('b', {}, 'Juga bicara di chat ketikan'), h('small', {}, 'Perintah suara selalu dibalas dengan suara kalau Voice aktif')),
+          h('span', { class: `switch${cfg.speak_chat ? ' on' : ''}` })),
+        h('div', { class: 'divider' }),
+        ...rows,
+      ]);
+    },
+    abilities() {
+      openSheet('Abilities · apa yang boleh dilakukan', ABILITIES.map(([id, name, hint]) => {
+        const on = cfg.abilities.includes(id);
+        return h('button', { class: `opt${on ? ' on' : ''}`, onclick: async () => {
+            await save({ abilities: on ? cfg.abilities.filter(a => a !== id) : [...cfg.abilities, id] });
+            pickers.abilities();
+          } },
+          h('span', { class: 'grow' }, h('b', {}, name), h('small', {}, hint)), h('span', { class: `switch${on ? ' on' : ''}` }));
+      }));
+    },
+  };
+  document.querySelectorAll('.node').forEach(n => n.onclick = () => pickers[n.dataset.slot]());
+
+  // ---------- pengaturan ----------
+  const split = s => s.split('+').map(k => k.trim().toLowerCase()).filter(Boolean);
+  function fillSettings() {
+    $('key').value = cfg.api_key; $('model').value = cfg.model;
+    $('dict').value = cfg.dictation_hotkey.join('+'); $('cmd').value = cfg.command_hotkey.join('+');
+  }
+  $('reveal').onclick = () => {
+    const k = $('key'); k.type = k.type === 'password' ? 'text' : 'password';
+    $('reveal').textContent = k.type === 'password' ? 'Lihat' : 'Sembunyi';
+  };
+  $('save').onclick = async () => {
+    await save({ api_key: $('key').value.trim(), model: $('model').value.trim() || 'gemini-3.5-flash-lite',
+                 dictation_hotkey: split($('dict').value), command_hotkey: split($('cmd').value) });
+    toast('Tersimpan');
+  };
+
+  // ---------- jadwal ----------
+  const repeatLabel = { once: 'Sekali', daily: 'Tiap hari', weekdays: 'Hari kerja' };
+  function renderTodos(list) {
+    $('todo-list').replaceChildren(...(list.length ? list.map((t, i) => h('li', {},
+      h('button', { class: 'check', title: 'Selesai', onclick: async () => renderTodos(await invoke('complete_todo', { index: i })) }),
+      h('div', { class: 'grow' }, t.text, t.due ? h('small', {}, t.due) : null)))
+      : [h('div', { class: 'empty' }, 'Belum ada to-do.')]));
+  }
+  function renderTasks(list) {
+    $('task-list').replaceChildren(...(list.length ? list.map((t, i) => h('li', {},
+      h('div', { class: 'grow' }, t.command, h('small', {}, `${repeatLabel[t.repeat] || t.repeat} · ${t.next.replace('T', ' ')}`)),
+      h('button', { class: 'x', title: 'Batalkan', onclick: async () => renderTasks(await invoke('cancel_task', { index: i })) }, '✕')))
+      : [h('div', { class: 'empty' }, 'Belum ada jadwal.')]));
+  }
+  async function refreshPlans() {
+    renderTodos(await invoke('get_todos'));
+    renderTasks(await invoke('get_tasks'));
+  }
+  $('todo-form').onsubmit = async e => {
+    e.preventDefault();
+    const text = $('todo-text').value.trim(); if (!text) return;
+    $('todo-text').value = '';
+    renderTodos(await invoke('add_todo', { text }));
+  };
+  listen('tasks-changed', refreshPlans);
+
+  // ---------- start ----------
+  (async () => {
+    cfg = await invoke('get_config');
+    renderCore(); renderNodes(); fillSettings();
+    if (!cfg.api_key) document.querySelector('[data-page="settings"]').click();
+    requestAnimationFrame(drawLinks);
+  })();
+</script>
+</body>
+</html>

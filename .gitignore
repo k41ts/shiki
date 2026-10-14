@@ -1,0 +1,12 @@
+# Build output
+target/
+src-tauri/target/
+src-tauri/gen/
+*.exe
+
+# Claude / tooling
+.claude/
+claude/
+CLAUDE.md
+CLAUDE.local.md
+graphify-out/
