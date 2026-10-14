@@ -664,6 +664,16 @@ async fn set_radio(which: String, on: bool) -> bool {
 }
 
 #[tauri::command]
+fn get_autostart() -> bool {
+    system::autostart()
+}
+
+#[tauri::command]
+fn set_autostart(on: bool) -> bool {
+    system::set_autostart(on)
+}
+
+#[tauri::command]
 fn favorite_apps() -> Vec<String> {
     system::favorite_apps()
 }
@@ -693,7 +703,7 @@ fn main() {
             set_hit_rect, chat_send, chat_reset, restore_focus, show_settings, media_info, media_action, media_seek, get_stats,
             clipboard_list, clipboard_clear, clipboard_paste, quick_keys, send_keys, app_list, launch_app, wallpapers, set_wallpaper, power,
             pick_wallpaper_folder, app_icons, get_controls, set_volume, set_muted, set_dark_mode, set_radio,
-            favorite_apps, toggle_favorite, app_usage, preview_voice
+            favorite_apps, toggle_favorite, app_usage, preview_voice, get_autostart, set_autostart
         ])
         .setup(|app| {
             let handle = app.handle().clone();

@@ -199,6 +199,10 @@
           </div>
           <p class="help">Pisahkan dengan +, contoh <kbd>ctrl+win</kbd> atau <kbd>ctrl+alt</kbd>.</p>
         </div>
+        <button class="card opt" id="autostart" style="border-width:1px">
+          <span class="grow"><b>Jalankan Shiki saat Windows menyala</b><small>Muncul di Task Manager › Startup apps. Langsung tersimpan.</small></span>
+          <span class="switch"></span>
+        </button>
         <button class="btn primary" id="save">Simpan</button>
       </div>
     </section>
@@ -381,6 +385,19 @@
                  dictation_hotkey: split($('dict').value), command_hotkey: split($('cmd').value) });
     toast('Tersimpan');
   };
+
+  // Start with Windows: applied immediately, separate from the Simpan button.
+  async function paintAutostart() {
+    const on = await invoke('get_autostart');
+    $('autostart').querySelector('.switch').classList.toggle('on', on);
+  }
+  $('autostart').onclick = async () => {
+    const on = !$('autostart').querySelector('.switch').classList.contains('on');
+    if (await invoke('set_autostart', { on })) toast(on ? 'Shiki akan jalan saat Windows menyala' : 'Tidak jalan otomatis lagi');
+    else toast('Gagal mengubah pengaturan startup');
+    paintAutostart();
+  };
+  paintAutostart();
 
   // ---------- jadwal ----------
   const repeatLabel = { once: 'Sekali', daily: 'Tiap hari', weekdays: 'Hari kerja' };

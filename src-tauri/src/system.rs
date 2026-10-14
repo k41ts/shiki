@@ -873,3 +873,29 @@ pub fn send_to_bottom(hwnd: isize) {
         let _ = SetWindowPos(HWND(hwnd as *mut _), Some(HWND_BOTTOM), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 }
+
+// ---------- start with Windows ----------
+
+const RUN_KEY: windows::core::PCWSTR = windows::core::w!(r"Software\Microsoft\Windows\CurrentVersion\Run");
+const RUN_NAME: windows::core::PCWSTR = windows::core::w!("Shiki");
+
+/// Whether Windows starts Shiki at sign-in (the per-user Run key, same list as Task Manager › Startup apps).
+pub fn autostart() -> bool {
+    use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_SZ};
+    let mut size = 0u32;
+    unsafe { RegGetValueW(HKEY_CURRENT_USER, RUN_KEY, RUN_NAME, RRF_RT_REG_SZ, None, None, Some(&mut size)) }.is_ok()
+}
+
+/// Turns starting at sign-in on (pointing at this exe) or off.
+pub fn set_autostart(on: bool) -> bool {
+    use windows::Win32::System::Registry::{RegDeleteKeyValueW, RegSetKeyValueW, HKEY_CURRENT_USER, REG_SZ};
+    unsafe {
+        if !on {
+            let _ = RegDeleteKeyValueW(HKEY_CURRENT_USER, RUN_KEY, RUN_NAME);
+            return true;
+        }
+        let Ok(exe) = std::env::current_exe() else { return false };
+        let value = wide(&format!("\"{}\"", exe.display()));
+        RegSetKeyValueW(HKEY_CURRENT_USER, RUN_KEY, RUN_NAME, REG_SZ.0, Some(value.as_ptr() as *const _), (value.len() * 2) as u32).is_ok()
+    }
+}
