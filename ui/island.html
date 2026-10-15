@@ -641,6 +641,7 @@
     whatsapp_prepare: a => `Menyiapkan ${(a.file || '').split(/[\\/]/).pop()} untuk ${a.contact}`,
     whatsapp_send: () => 'Mengirim di WhatsApp',
     whatsapp_cancel: () => 'Membatalkan kiriman',
+    whatsapp_call: a => `Menelepon ${a.contact}${a.video ? ' (video)' : ''}`,
     play_youtube: a => `Memutar "${a.query}" di YouTube`,
     open_website: a => `Membuka ${a.url}`,
     press_keys: a => `Menekan ${a.keys}`,

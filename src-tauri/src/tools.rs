@@ -32,6 +32,7 @@ pub const ABILITIES: &[(&str, &[&str])] = &[
     ("keyboard", &["press_keys", "type_text"]),
     ("planner", &["add_todo", "list_todos", "complete_todo", "schedule_task", "list_scheduled", "cancel_scheduled"]),
     ("files", &["find_files", "whatsapp_prepare", "whatsapp_send", "whatsapp_cancel"]),
+    ("calls", &["whatsapp_call"]),
 ];
 
 /// Tool declarations for the enabled abilities only.
@@ -96,6 +97,10 @@ fn all_declarations() -> Value {
             &["file", "contact"]),
         decl("whatsapp_send", "Send the file prepared by whatsapp_prepare. Only call this after the user explicitly said yes in a NEW message.", &[], &[]),
         decl("whatsapp_cancel", "Cancel the file prepared by whatsapp_prepare without sending it.", &[], &[]),
+        decl("whatsapp_call", "Call someone on WhatsApp Web right away (voice by default). Opens the chat that matches the name and presses its call button.",
+            &[("contact", "STRING", "Name as the user said it, e.g. 'Haidar'"),
+              ("video", "BOOLEAN", "true for a video call")],
+            &["contact"]),
         decl("list_scheduled", "List scheduled tasks and routines, numbered.", &[], &[]),
         decl("cancel_scheduled", "Cancel a scheduled task.",
             &[("number", "INTEGER", "1-based number from list_scheduled")], &["number"]),
@@ -158,6 +163,7 @@ pub fn execute(name: &str, args: &Value) -> String {
         "whatsapp_prepare" => crate::whatsapp::prepare(&s("file"), &s("contact"), &s("caption")),
         "whatsapp_send" => crate::whatsapp::send(),
         "whatsapp_cancel" => crate::whatsapp::cancel(),
+        "whatsapp_call" => crate::whatsapp::call(&s("contact"), args["video"].as_bool().unwrap_or(false)),
         "list_scheduled" => store::list_tasks(),
         "cancel_scheduled" => store::cancel_task(n("number")),
         other => format!("Unknown tool {other}."),

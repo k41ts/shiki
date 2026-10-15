@@ -26,8 +26,8 @@ pub struct Config {
     pub abilities_version: u32,
 }
 
-/// Version 1 added the "files" ability (find files, send them on WhatsApp).
-const ABILITIES_VERSION: u32 = 1;
+/// Version 1 added "files" (find files, send them on WhatsApp), version 2 added "calls" (WhatsApp calls).
+const ABILITIES_VERSION: u32 = 2;
 
 impl Default for Config {
     fn default() -> Self {
@@ -71,8 +71,10 @@ pub fn load() -> Config {
     if cfg.api_key.is_empty() {
         cfg.api_key = std::env::var("GEMINI_API_KEY").unwrap_or_default();
     }
-    if cfg.abilities_version < 1 && !cfg.abilities.iter().any(|a| a == "files") {
-        cfg.abilities.push("files".into());
+    for (version, ability) in [(1, "files"), (2, "calls")] {
+        if cfg.abilities_version < version && !cfg.abilities.iter().any(|a| a == ability) {
+            cfg.abilities.push(ability.into());
+        }
     }
     cfg.abilities_version = ABILITIES_VERSION;
     cfg

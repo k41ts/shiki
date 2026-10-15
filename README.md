@@ -33,6 +33,9 @@ Bilang (atau ketik) misalnya **"kirim laporan PKL ke Alex di WA"**:
 
 Bisa dimatikan di Loadout › Abilities › File & WhatsApp.
 
+## Telepon lewat WhatsApp
+Bilang **"telpon Haidar"** (atau **"video call Haidar"**): Shiki membuka chat yang namanya cocok di WhatsApp Web dan langsung menekan tombol telepon. Kalau ada beberapa chat yang sama cocoknya, Shiki tanya dulu yang mana. Bisa dimatikan di Loadout › Abilities › Telepon WhatsApp.
+
 ## Island
 Notch kecil di tengah atas layar. **Klik atau scroll ke bawah** di notch untuk membuka panel; Esc atau klik di luar untuk menutup. Notch otomatis sembunyi saat ada aplikasi fullscreen.
 

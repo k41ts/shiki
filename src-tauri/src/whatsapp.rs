@@ -230,12 +230,24 @@ fn chat_name(composer: &str) -> String {
 
 // ---------- the flow ----------
 
-/// Opens the chat with `contact` in WhatsApp Web and attaches `file` (with an optional caption). Does not send.
-pub fn prepare(file: &str, contact: &str, caption: &str) -> String {
-    let path = Path::new(file);
-    if !path.is_file() {
-        return format!("File not found: {file}. Use find_files to get the exact path.");
+/// The chat Shiki opened: the page, the browser window and the chat's name as WhatsApp shows it.
+struct OpenChat {
+    page: Page,
+    hwnd: HWND,
+    chat: String,
+}
+
+fn saved_clipboard() -> Option<String> {
+    arboard::Clipboard::new().and_then(|mut c| c.get_text()).ok()
+}
+fn restore_clipboard(saved: &Option<String>) {
+    if let Some(text) = saved {
+        let _ = arboard::Clipboard::new().and_then(|mut c| c.set_text(text.clone()));
     }
+}
+
+/// Opens WhatsApp Web (if needed) and the chat that best matches `contact`. The error is a message for the agent.
+fn open_chat(contact: &str) -> Result<OpenChat, String> {
     let hwnd = match whatsapp_window() {
         Some(h) => h,
         None => {
@@ -246,16 +258,13 @@ pub fn prepare(file: &str, contact: &str, caption: &str) -> String {
                 sleep(Duration::from_millis(500));
                 found = whatsapp_window();
             }
-            match found {
-                Some(h) => h,
-                None => return "WhatsApp Web didn't open. Ask the user to open web.whatsapp.com and log in, then try again.".into(),
-            }
+            found.ok_or("WhatsApp Web didn't open. Ask the user to open web.whatsapp.com and log in, then try again.")?
         }
     };
     if !focus(hwnd) {
-        return "Couldn't bring WhatsApp Web to the front.".into();
+        return Err("Couldn't bring WhatsApp Web to the front.".into());
     }
-    let Some(page) = Page::new(hwnd) else { return "Couldn't read the WhatsApp Web page.".into() };
+    let page = Page::new(hwnd).ok_or("Couldn't read the WhatsApp Web page.")?;
     // An earlier attachment preview would hide the search box: close it first.
     if PENDING.lock().unwrap().take().is_some() || page.find(UIA_ButtonControlTypeId, is_send).is_some() {
         let _ = input::press("esc");
@@ -263,15 +272,10 @@ pub fn prepare(file: &str, contact: &str, caption: &str) -> String {
     }
 
     // 1. Search box (also tells us WhatsApp Web has finished loading and is logged in).
-    let Some(search) = page.wait_for(UIA_EditControlTypeId, 25, is_search_or_blank) else {
-        return "WhatsApp Web isn't ready (still loading, or not logged in). Ask the user to check the WhatsApp tab and try again.".into();
-    };
-    let saved = arboard::Clipboard::new().and_then(|mut c| c.get_text()).ok();
-    let restore = || {
-        if let Some(text) = &saved {
-            let _ = arboard::Clipboard::new().and_then(|mut c| c.set_text(text.clone()));
-        }
-    };
+    let search = page
+        .wait_for(UIA_EditControlTypeId, 25, is_search_or_blank)
+        .ok_or("WhatsApp Web isn't ready (still loading, or not logged in). Ask the user to check the WhatsApp tab and try again.")?;
+    let saved = saved_clipboard();
 
     // 2. WhatsApp's own search wants exact spelling, so search one word at a time and match the
     //    full name ourselves (tolerating small spelling differences). Only chat titles count, so a
@@ -300,44 +304,57 @@ pub fn prepare(file: &str, contact: &str, caption: &str) -> String {
             break; // an exact-length match; no need to try the other words
         }
     }
+    restore_clipboard(&saved);
     best.sort_by(|a, b| b.0.cmp(&a.0));
-    let tied: Vec<&String> = best.iter().filter(|(sc, ..)| Some(*sc) == best.first().map(|b| b.0)).map(|(_, t, _)| t).collect();
+    let top = best.first().map(|b| b.0);
+    let tied: Vec<&String> = best.iter().filter(|(sc, ..)| Some(*sc) == top).map(|(_, t, _)| t).collect();
     if best.is_empty() {
         let _ = input::press("esc");
-        restore();
-        let close: Vec<&String> = seen.iter().take(5).collect();
-        return if close.is_empty() {
+        let close: Vec<String> = seen.iter().take(5).map(|t| format!("'{t}'")).collect();
+        return Err(if close.is_empty() {
             format!("No WhatsApp chat matches '{contact}'. Ask the user for the name exactly as it appears in WhatsApp.")
         } else {
-            format!("No WhatsApp chat matches '{contact}'. Chats found while searching: {}. Ask the user which one they mean.", close.iter().map(|t| format!("'{t}'")).collect::<Vec<_>>().join(", "))
-        };
+            format!("No WhatsApp chat matches '{contact}'. Chats found while searching: {}. Ask the user which one they mean.", close.join(", "))
+        });
     }
     if tied.len() > 1 {
         let _ = input::press("esc");
-        restore();
-        return format!("Several WhatsApp chats match '{contact}': {}. Ask the user which one.", tied.iter().map(|t| format!("'{t}'")).collect::<Vec<_>>().join(", "));
+        let names: Vec<String> = tied.iter().map(|t| format!("'{t}'")).collect();
+        return Err(format!("Several WhatsApp chats match '{contact}': {}. Ask the user which one.", names.join(", ")));
     }
     let (_, _, row) = best.swap_remove(0);
     click(&Node { el: row, kind: UIA_DataItemControlTypeId, name: String::new() });
 
     // 3. The message box names the open chat: that's how we know which chat we're in.
     sleep(Duration::from_millis(800));
-    let Some(composer) = page.wait_for(UIA_EditControlTypeId, 6, is_composer) else {
-        restore();
-        return format!("Couldn't open the chat for '{contact}'.");
-    };
+    let composer = page.wait_for(UIA_EditControlTypeId, 6, is_composer).ok_or(format!("Couldn't open the chat for '{contact}'."))?;
     let chat = chat_name(&composer.name);
+    Ok(OpenChat { page, hwnd, chat })
+}
 
-    // 4. Paste the file like Explorer's Copy → WhatsApp opens its attachment preview.
-    click(&composer);
-    sleep(Duration::from_millis(300));
+/// Opens the chat with `contact` in WhatsApp Web and attaches `file` (with an optional caption). Does not send.
+pub fn prepare(file: &str, contact: &str, caption: &str) -> String {
+    let path = Path::new(file);
+    if !path.is_file() {
+        return format!("File not found: {file}. Use find_files to get the exact path.");
+    }
+    let OpenChat { page, hwnd, chat } = match open_chat(contact) {
+        Ok(c) => c,
+        Err(e) => return e,
+    };
+
+    // Paste the file like Explorer's Copy → WhatsApp opens its attachment preview.
+    if let Some(composer) = page.find(UIA_EditControlTypeId, is_composer) {
+        click(&composer);
+        sleep(Duration::from_millis(300));
+    }
+    let saved = saved_clipboard();
     if let Err(e) = files::copy_to_clipboard(&[path]) {
-        restore();
         return format!("Couldn't attach the file: {e}");
     }
     let _ = input::press("ctrl+v");
     let preview = page.wait_for(UIA_ButtonControlTypeId, 8, is_send);
-    restore();
+    restore_clipboard(&saved);
     if preview.is_none() {
         return format!("Opened the chat '{chat}', but WhatsApp didn't show the attachment preview, so nothing is attached. Ask the user to try again.");
     }
@@ -355,6 +372,29 @@ pub fn prepare(file: &str, contact: &str, caption: &str) -> String {
         "Prepared, NOT sent: '{name}' is attached in the WhatsApp chat '{chat}', preview open. \
          Ask the user to confirm sending '{name}' to '{chat}' (use that exact chat name)."
     )
+}
+
+/// The call buttons in the chat header. Exact labels, so "Telepon suara 1 menit" call bubbles
+/// and the sidebar's "Telepon" tab don't count.
+fn is_voice_call(name: &str) -> bool {
+    name == "telepon suara" || name == "voice call"
+}
+fn is_video_call(name: &str) -> bool {
+    name == "telepon video" || name == "video call"
+}
+
+/// Calls `contact` on WhatsApp Web (voice, or video). Only when exactly one chat matches.
+pub fn call(contact: &str, video: bool) -> String {
+    let OpenChat { page, chat, .. } = match open_chat(contact) {
+        Ok(c) => c,
+        Err(e) => return e,
+    };
+    let button = if video { page.find(UIA_ButtonControlTypeId, is_video_call) } else { page.find(UIA_ButtonControlTypeId, is_voice_call) };
+    let Some(button) = button else {
+        return format!("Opened the chat '{chat}', but WhatsApp Web shows no {} call button there (calls may not be available for this chat).", if video { "video" } else { "voice" });
+    };
+    click(&button);
+    format!("Calling '{chat}' on WhatsApp ({}).", if video { "video call" } else { "voice call" })
 }
 
 /// Sends what `prepare` attached. Refuses within the same turn, so the user must have answered first.
