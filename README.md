@@ -25,6 +25,14 @@ Contoh perintah:
 
 Shortcut bisa diganti di Settings.
 
+## Kirim file lewat WhatsApp
+Bilang (atau ketik) misalnya **"kirim laporan PKL ke Alex di WA"**:
+1. Shiki mencari file di Desktop, Documents, Downloads, Pictures dan `D:\Coding`.
+2. Di WhatsApp Web (browser, sudah login) Shiki mencari chat yang namanya cocok (toleran salah eja, nama depan cukup), membukanya dan melampirkan file.
+3. Shiki bertanya sekali: *"Apakah kamu ingin mengirim laporan.pdf ke Alex Luqman?"*, lalu baru mengirim setelah kamu jawab **ya** (atau klik **Kirim**).
+
+Bisa dimatikan di Loadout › Abilities › File & WhatsApp.
+
 ## Island
 Notch kecil di tengah atas layar. **Klik atau scroll ke bawah** di notch untuk membuka panel; Esc atau klik di luar untuk menutup. Notch otomatis sembunyi saat ada aplikasi fullscreen.
 
@@ -57,6 +65,8 @@ Butuh Rust (rustup) dan Visual Studio Build Tools (workload C++). Jalankan `buil
 Script ini build dengan 2 core supaya beban CPU ringan, lalu menaruh hasilnya di `Shiki.exe`.
 
 ## Catatan
+- Shiki bisa jalan otomatis saat Windows menyala: Pengaturan › "Jalankan Shiki saat Windows menyala".
+- Kalau `Shiki.exe` diganti versi baru di tempat yang sama, Shiki yang sedang jalan otomatis restart ke versi baru saat sedang nganggur.
 - Rutinitas hanya jalan selama Shiki berjalan. Supaya ikut nyala saat Windows start, taruh shortcut `Shiki.exe` di folder `shell:startup`.
 - Hotkey tidak terdeteksi di jendela yang berjalan sebagai Administrator.
 - Pemakaian RAM saat idle sekitar 125 MB (Shiki sekitar 8 MB, sisanya proses WebView2).

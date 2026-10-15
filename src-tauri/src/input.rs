@@ -28,6 +28,23 @@ pub fn chord(vks: &[u16]) {
     }
 }
 
+/// Left-click at a screen position, then put the cursor back where it was.
+pub fn click(x: i32, y: i32) {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{INPUT_MOUSE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEINPUT};
+    use windows::Win32::UI::WindowsAndMessaging::{GetCursorPos, SetCursorPos};
+    let mouse = |flags| INPUT { r#type: INPUT_MOUSE, Anonymous: INPUT_0 { mi: MOUSEINPUT { dwFlags: flags, ..Default::default() } } };
+    unsafe {
+        let mut was = POINT::default();
+        let _ = GetCursorPos(&mut was);
+        let _ = SetCursorPos(x, y);
+        sleep(Duration::from_millis(30));
+        SendInput(&[mouse(MOUSEEVENTF_LEFTDOWN), mouse(MOUSEEVENTF_LEFTUP)], std::mem::size_of::<INPUT>() as i32);
+        sleep(Duration::from_millis(60));
+        let _ = SetCursorPos(was.x, was.y);
+    }
+}
+
 /// Tap an unassigned key so Windows doesn't treat the coming Win release as "open Start".
 pub fn suppress_start_menu() {
     chord(&[0xE8]);
@@ -55,6 +72,7 @@ pub fn vk_from_name(name: &str) -> Option<u16> {
         "page up" | "pageup" => 0x21,
         "page down" | "pagedown" => 0x22,
         "print screen" | "printscreen" => 0x2C,
+        "/" => 0xBF,
         "volume up" => 0xAF,
         "volume down" => 0xAE,
         "volume mute" | "mute" => 0xAD,

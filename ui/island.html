@@ -637,6 +637,10 @@
     media_seek: a => a.mode === 'forward' ? `Maju ${a.seconds} detik` : a.mode === 'back' ? `Mundur ${a.seconds} detik` : `Lompat ke ${Math.floor(a.seconds / 60)}:${String(Math.round(a.seconds % 60)).padStart(2, '0')}`,
     media_control: a => ({ play: 'Memutar', pause: 'Menjeda', next: 'Lagu berikutnya', previous: 'Lagu sebelumnya' })[a.action] || 'Play/pause',
     now_playing: () => 'Melihat yang sedang diputar',
+    find_files: a => `Mencari file "${a.query}"`,
+    whatsapp_prepare: a => `Menyiapkan ${(a.file || '').split(/[\\/]/).pop()} untuk ${a.contact}`,
+    whatsapp_send: () => 'Mengirim di WhatsApp',
+    whatsapp_cancel: () => 'Membatalkan kiriman',
     play_youtube: a => `Memutar "${a.query}" di YouTube`,
     open_website: a => `Membuka ${a.url}`,
     press_keys: a => `Menekan ${a.keys}`,
@@ -674,7 +678,15 @@
     messages.scrollTop = messages.scrollHeight;
   }
 
-  listen('chat', ({ payload: p }) => addMsg(p.kind, p.kind === 'tool' ? p.name : p.text, p.args));
+  listen('chat', ({ payload: p }) => { if (p.kind === 'user') messages.querySelector('.confirm')?.remove(); addMsg(p.kind, p.kind === 'tool' ? p.name : p.text, p.args); });
+  // A WhatsApp file is attached and waiting: offer one-click answers (typing or saying them works too).
+  listen('confirm-send', () => {
+    messages.querySelector('.confirm')?.remove();
+    messages.append(h('div', { class: 'suggest confirm', style: 'justify-content:flex-start;margin-top:0' },
+      h('button', { onclick: () => send('Ya, kirim') }, 'Kirim'),
+      h('button', { onclick: () => send('Batal, jangan dikirim') }, 'Batal')));
+    messages.scrollTop = messages.scrollHeight;
+  });
 
   function send(text) {
     text = text.trim();

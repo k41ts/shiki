@@ -31,6 +31,7 @@ pub const ABILITIES: &[(&str, &[&str])] = &[
     ("media", &["media_seek", "media_control", "now_playing"]),
     ("keyboard", &["press_keys", "type_text"]),
     ("planner", &["add_todo", "list_todos", "complete_todo", "schedule_task", "list_scheduled", "cancel_scheduled"]),
+    ("files", &["find_files", "whatsapp_prepare", "whatsapp_send", "whatsapp_cancel"]),
 ];
 
 /// Tool declarations for the enabled abilities only.
@@ -86,6 +87,15 @@ fn all_declarations() -> Value {
               ("at", "STRING", "Local time: YYYY-MM-DD HH:MM, or HH:MM"),
               ("repeat", "STRING", "once, daily or weekdays. Default once")],
             &["command", "at"]),
+        decl("find_files", "Find the user's files by name in Desktop, Documents, Downloads, Pictures and D:\\Coding. Returns up to 8 matches, newest first, with full paths.",
+            &[("query", "STRING", "Words from the file name, e.g. 'laporan pkl' or 'cv pdf'")], &["query"]),
+        decl("whatsapp_prepare", "Open the user's WhatsApp Web chat with a contact and attach a file, WITHOUT sending. Afterwards you must ask the user to confirm (name the file and the contact) and end your turn.",
+            &[("file", "STRING", "Full path from find_files"),
+              ("contact", "STRING", "Contact or group name as it appears in WhatsApp"),
+              ("caption", "STRING", "Optional message to send with the file")],
+            &["file", "contact"]),
+        decl("whatsapp_send", "Send the file prepared by whatsapp_prepare. Only call this after the user explicitly said yes in a NEW message.", &[], &[]),
+        decl("whatsapp_cancel", "Cancel the file prepared by whatsapp_prepare without sending it.", &[], &[]),
         decl("list_scheduled", "List scheduled tasks and routines, numbered.", &[], &[]),
         decl("cancel_scheduled", "Cancel a scheduled task.",
             &[("number", "INTEGER", "1-based number from list_scheduled")], &["number"]),
@@ -137,6 +147,17 @@ pub fn execute(name: &str, args: &Value) -> String {
             let repeat = s("repeat");
             store::schedule(&s("command"), &s("at"), if repeat.is_empty() { "once" } else { &repeat })
         }
+        "find_files" => {
+            let found = crate::files::find(&s("query"));
+            if found.is_empty() {
+                format!("No files matching '{}' in Desktop, Documents, Downloads, Pictures or D:\\Coding.", s("query"))
+            } else {
+                found.iter().enumerate().map(|(i, f)| format!("{}. {}", i + 1, crate::files::describe(f))).collect::<Vec<_>>().join("\n")
+            }
+        }
+        "whatsapp_prepare" => crate::whatsapp::prepare(&s("file"), &s("contact"), &s("caption")),
+        "whatsapp_send" => crate::whatsapp::send(),
+        "whatsapp_cancel" => crate::whatsapp::cancel(),
         "list_scheduled" => store::list_tasks(),
         "cancel_scheduled" => store::cancel_task(n("number")),
         other => format!("Unknown tool {other}."),

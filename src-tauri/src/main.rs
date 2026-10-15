@@ -2,12 +2,14 @@
 
 mod audio;
 mod config;
+mod files;
 mod gemini;
 mod hotkeys;
 mod input;
 mod store;
 mod system;
 mod tools;
+mod whatsapp;
 
 use config::Config;
 use image::RgbaImage;
@@ -265,6 +267,7 @@ fn run_agent(app: &AppHandle, parts: Vec<Value>, label: &str, remember: bool, sp
     island(app, "thinking", "Berpikir…");
     let st = app.state::<AppState>();
     let _turn = st.agent_lock.lock().unwrap();
+    whatsapp::TURN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let cfg = st.cfg.lock().unwrap().clone();
     let mut history = if remember { st.history.lock().unwrap().clone() } else { Vec::new() };
     let result = gemini(app).command(&mut history, parts, &cfg.personality, &cfg.abilities, |name, args| {
@@ -285,6 +288,9 @@ fn run_agent(app: &AppHandle, parts: Vec<Value>, label: &str, remember: bool, sp
             }
             let _ = app.emit("chat", json!({ "kind": "assistant", "text": reply }));
             island(app, "done", &reply);
+            if whatsapp::is_pending() {
+                let _ = app.emit("confirm-send", ()); // chat shows Kirim / Batal buttons
+            }
             if !cfg.voice.is_empty() && (spoken || cfg.speak_chat) {
                 let app = app.clone();
                 thread::spawn(move || {
@@ -299,6 +305,28 @@ fn run_agent(app: &AppHandle, parts: Vec<Value>, label: &str, remember: bool, sp
             island(app, "error", &e);
         }
     }
+}
+
+/// When a newer Shiki.exe is put where this one was started from (a running exe can be renamed
+/// aside and replaced), restart into it as soon as Shiki is idle.
+fn watch_for_update(app: AppHandle) {
+    let Ok(exe) = std::env::current_exe() else { return };
+    let modified = |p: &std::path::Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
+    let Some(started_as) = modified(&exe) else { return };
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_secs(5));
+        let Some(now) = modified(&exe) else { continue };
+        if now <= started_as {
+            continue;
+        }
+        thread::sleep(Duration::from_secs(2)); // let the copy finish
+        let st = app.state::<AppState>();
+        let idle = st.mode.lock().unwrap().is_none() && st.agent_lock.try_lock().is_ok();
+        if idle && std::process::Command::new(&exe).spawn().is_ok() {
+            app.exit(0);
+            return;
+        }
+    });
 }
 
 /// Island window size in logical px; the panel inside is at most this big.
@@ -746,6 +774,7 @@ fn main() {
                 move |event| on_hold(&h2, event),
             );
             run_scheduler(handle.clone());
+            watch_for_update(handle.clone());
             thread::spawn(tools::app_list); // warm the app list so the first voice command isn't slowed by it
 
             let has_key = !app.state::<AppState>().cfg.lock().unwrap().api_key.is_empty();

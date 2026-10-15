@@ -22,7 +22,12 @@ pub struct Config {
     pub speak_chat: bool,
     /// Abilities the agent may use (see tools::ABILITIES).
     pub abilities: Vec<String>,
+    /// Bumped when new abilities arrive, so existing configs get them switched on once.
+    pub abilities_version: u32,
 }
+
+/// Version 1 added the "files" ability (find files, send them on WhatsApp).
+const ABILITIES_VERSION: u32 = 1;
 
 impl Default for Config {
     fn default() -> Self {
@@ -37,6 +42,7 @@ impl Default for Config {
             voice: String::new(),
             speak_chat: false,
             abilities: crate::tools::ABILITIES.iter().map(|(id, _)| id.to_string()).collect(),
+            abilities_version: 0,
         }
     }
 }
@@ -65,6 +71,10 @@ pub fn load() -> Config {
     if cfg.api_key.is_empty() {
         cfg.api_key = std::env::var("GEMINI_API_KEY").unwrap_or_default();
     }
+    if cfg.abilities_version < 1 && !cfg.abilities.iter().any(|a| a == "files") {
+        cfg.abilities.push("files".into());
+    }
+    cfg.abilities_version = ABILITIES_VERSION;
     cfg
 }
 
