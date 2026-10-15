@@ -1,6 +1,6 @@
 # Shiki
 
-Asisten suara untuk Windows ala Hitodama. Dibuat dengan Rust + Tauri 2, otaknya Gemini (pakai API key kamu sendiri).
+Asisten suara untuk Windows. Dibuat dengan Rust + Tauri 2, otaknya Gemini (pakai API key kamu sendiri).
 
 ## Jalankan
 1. Double-click `Shiki.exe`. Tidak perlu install; WebView2 sudah bawaan Windows 11.

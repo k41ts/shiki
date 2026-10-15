@@ -634,7 +634,7 @@ fn wallfx_window(app: &AppHandle) -> Option<tauri::WebviewWindow> {
     Some(w)
 }
 
-/// Changes the wallpaper with Hitodama's reveal: a circle of the new picture grows from the centre
+/// Changes the wallpaper with a reveal: a circle of the new picture grows from the centre
 /// of the desktop, then the real wallpaper is swapped in underneath and the effect fades away.
 #[tauri::command]
 async fn set_wallpaper(app: AppHandle, path: String) -> bool {
